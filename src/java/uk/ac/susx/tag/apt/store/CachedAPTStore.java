@@ -82,7 +82,7 @@ public class CachedAPTStore<T extends APT> implements APTStore<T> {
         trees.put(key, apt);
     }
 
-    public class Builder implements APTStore.Builder {
+    public static class Builder implements APTStore.Builder {
         private int maxItems = 10000;
 
         private PersistentKVStore<byte[], byte[]> backend;
@@ -103,6 +103,7 @@ public class CachedAPTStore<T extends APT> implements APTStore<T> {
 
         @Override
         public <T extends APT> APTStore<T> build(APTFactory<T> factory) {
+            if (backend == null) throw new IllegalStateException("CachedAPTStore backend not set");
             return new CachedAPTStore<>(maxItems, factory, backend);
         }
     }
