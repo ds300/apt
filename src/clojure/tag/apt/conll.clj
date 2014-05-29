@@ -15,10 +15,8 @@
       (not= c -1) (loop [c c line (transient []) s (StringBuilder.)]
                     (cond
                       (or= c 10 -1) (let [item (.toString s)
-                                          line (if (zero? (.length item))
-                                                 line
-                                                 (conj! line item))]
-                                      (if (zero? (count line))
+                                          line (conj! line item)]
+                                      (if (and (= 1 (count line)) (= item ""))
                                         (parse* rdr acc)
                                         (parse* rdr (conj! acc (persistent! line)))))
 

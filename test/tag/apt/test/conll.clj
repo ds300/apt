@@ -15,7 +15,7 @@ this\tis\tthe
 second\tsentence
 
 \t\t
-
+\t
 
 blah
 ")
@@ -27,7 +27,7 @@ blah
                 [["this" "is" "the"]
                  ["second" "sentence"]]
 
-                [["" ""]]
+                [["" "" ""] ["" ""]]
 
                 [["blah"]]
 
@@ -36,6 +36,7 @@ blah
 (deftest parse-test
   (is (= expected (parse (StringReader. text))))
   (is (= [[["   " "t"]]] (parse (StringReader. "   \tt"))))
+  (is (= [[["   " "t" ""]]] (parse (StringReader. "   \tt\t"))))
   (is (not (seq (parse (StringReader. ""))))))
 
 
