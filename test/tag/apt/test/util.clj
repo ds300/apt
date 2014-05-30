@@ -3,7 +3,8 @@
            (uk.ac.susx.tag.apt APTFactory Resolver Indexer APT)
            (java.util Arrays)
            (clojure.lang IFn IDeref)
-           (java.io ByteArrayOutputStream ByteArrayInputStream))
+           (java.io ByteArrayOutputStream ByteArrayInputStream)
+           (java.util.zip GZIPOutputStream GZIPInputStream))
   (:require [clojure.test :refer :all]))
 
 (defn serialize [^APT apt]
@@ -13,6 +14,16 @@
 
 (defn deserialize [^bytes bytes ^APTFactory factory]
   (with-open [in (ByteArrayInputStream. bytes)]
+    (.read factory in)))
+
+(defn gz-serialize [^APT apt]
+  (with-open [baos (ByteArrayOutputStream.) ]
+    (with-open [out (GZIPOutputStream. baos)]
+      (.writeTo apt out))
+    (.toByteArray baos)))
+
+(defn gz-deserialize [^bytes bytes ^APTFactory factory]
+  (with-open [in (GZIPInputStream. (ByteArrayInputStream. bytes))]
     (.read factory in)))
 
 (defn reserialize [^APT apt factory]
@@ -36,6 +47,7 @@
                                   new-tree)))
                           (has [this key] (contains? @trees key))
                           (put [this key val] (swap! trees assoc key val))
+                          (close [this])
                           IDeref
                           (deref [this] @trees)))))
       IDeref
@@ -58,6 +70,30 @@
                                          factory))
                           (has [this key] (contains? @trees key))
                           (put [this key val] (swap! trees assoc key (serialize val)))
+                          (close [this])
+                          IDeref
+                          (deref [this] @trees)))))
+      IDeref
+      (deref [this] @store))))
+
+(defn in-memory-gzip-caching-apt-store-builder []
+  (let [store (atom nil)]
+
+    (reify
+      APTStore$Builder
+      (^APTStore build [this ^APTFactory factory]
+        (let [trees (atom {})]
+          (reset! store (reify
+                          APTStore
+                          (get [this key]
+                            (gz-deserialize (or (@trees key)
+                                             (let [new-tree (gz-serialize (.empty factory))]
+                                               (swap! trees assoc key new-tree)
+                                               new-tree))
+                                         factory))
+                          (has [this key] (contains? @trees key))
+                          (put [this key val] (swap! trees assoc key (gz-serialize val)))
+                          (close [this])
                           IDeref
                           (deref [this] @trees)))))
       IDeref
@@ -82,7 +118,8 @@
     (reify PersistentKVStore
       (store [this k v] (swap! store assoc (BytesKey. k) v))
       (get [this k] (@store (BytesKey. k)))
-      (contains [this k] (contains? @store (BytesKey. k))))))
+      (contains [this k] (contains? @store (BytesKey. k)))
+      (close [this]))))
 
 (deftest byte-store-test
   (let [store (in-memory-byte-store)]

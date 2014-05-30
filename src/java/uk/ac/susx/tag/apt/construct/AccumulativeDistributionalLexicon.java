@@ -42,4 +42,9 @@ public class AccumulativeDistributionalLexicon implements DistributionalLexicon<
     public void remove(int entityId) {
         throw new UnsupportedOperationException();
     }
+
+    @Override
+    public void close() throws IOException {
+        store.close();
+    }
 }

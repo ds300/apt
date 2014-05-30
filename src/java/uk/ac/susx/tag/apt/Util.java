@@ -1,6 +1,9 @@
 package uk.ac.susx.tag.apt;
 
 
+import java.io.IOException;
+import java.io.InputStream;
+
 /**
  * @author ds300
  * conversions from bytes assume big endian, conversions to bytes output big endian.
@@ -86,6 +89,22 @@ public class Util {
         uniques += a.length - i;
         uniques += b.length - j;
         return uniques;
+    }
+
+    public static int read(final InputStream inputStream, final byte[] buf, final int offset, final int length) throws IOException {
+        int bytesRead = 0;
+        int n = 0;
+        while (true) {
+            n = inputStream.read(buf, offset + bytesRead, length - bytesRead);
+            if (n > -1) {
+                bytesRead += n;
+                if (bytesRead >= length) {
+                    return bytesRead;
+                }
+            } else {
+                return bytesRead;
+            }
+        }
     }
 
 }

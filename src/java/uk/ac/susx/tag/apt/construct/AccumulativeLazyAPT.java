@@ -10,7 +10,7 @@ import java.io.*;
  * Does things lazily for ultra-efficient distributional lexicon creation. This shouldn't be used manually.
  * @author ds300
  */
-class AccumulativeLazyAPT implements APT {
+public class AccumulativeLazyAPT implements APT {
 
     static class Factory implements APTFactory<AccumulativeLazyAPT> {
 
@@ -103,13 +103,13 @@ class AccumulativeLazyAPT implements APT {
 
     public static AccumulativeLazyAPT fromInputStream (InputStream in) throws IOException {
         byte[] header = new byte[8];
-        in.read(header, 0, 8);
+        if (Util.read(in, header, 0, 8) != 8) throw new IOException("unexpected end of stream");
         int numTokenBytes = Util.bytes2int(header, 0);
         int numChildrenBytes = Util.bytes2int(header, 4);
         byte[] tokenBytes = new byte[numTokenBytes];
         byte[] childrenBytes = new byte[numChildrenBytes];
-        in.read(tokenBytes, 0, numTokenBytes);
-        in.read(childrenBytes, 0, numChildrenBytes);
+        if (Util.read(in, tokenBytes, 0, numTokenBytes) != numTokenBytes) throw new IOException("unexpected end of stream");
+        if (Util.read(in, childrenBytes, 0, numChildrenBytes) != numChildrenBytes) throw new IOException("unexpected end of stream");
         return new AccumulativeLazyAPT(childrenBytes, tokenBytes);
     }
 
@@ -185,58 +185,6 @@ class AccumulativeLazyAPT implements APT {
 
             serializedTokenCountsSize = x;
 
-//            int i=0;
-//            int x=0;
-//            int tkn = Util.bytes2int(tokenCountBytes, 0);
-//            ObjectBidirectionalIterator<Int2IntMap.Entry> itr = tokenCounts.int2IntEntrySet().iterator();
-//            Int2IntMap.Entry entry;
-//            entry = itr.next();
-//            int etkn = entry.getIntKey();
-//
-//            while (x < tokenCountBytes.length && entry != null) {
-//                if (tkn == etkn) {
-//                    System.arraycopy(tokenCountBytes, x, serializedTokenCounts, i, 4);
-//                    int sum = Util.bytes2int(tokenCountBytes, x + 4) + entry.getIntValue();
-//                    Util.int2bytes(sum, serializedTokenCounts, i + 4);
-//                    x += 8;
-//                    tkn = Util.bytes2int(tokenCountBytes, x);
-//                    entry = itr.next();
-//                    etkn = entry.getIntKey();
-//                } else if (tkn < etkn) {
-//                    Util.int2bytes(tkn, serializedTokenCounts, i);
-//                    System.arraycopy(tokenCountBytes, x + 4, serializedTokenCounts, i + 4, 4);
-//                    x += 8;
-//                    tkn = Util.bytes2int(tokenCountBytes, x);
-//                } else {
-//                    Util.int2bytes(etkn, serializedTokenCounts, i);
-//                    Util.int2bytes(entry.getIntValue(), serializedTokenCounts, i+4);
-//                    entry = itr.next();
-//                    etkn = entry.getIntKey();
-//                }
-//
-//                i+=8;
-//            }
-//
-//            while (x < tokenCountBytes.length) {
-//                Util.int2bytes(tkn, serializedTokenCounts, i);
-//                System.arraycopy(tokenCountBytes, x + 4, serializedTokenCounts, i + 4, 4);
-//                x += 8;
-//                tkn = Util.bytes2int(tokenCountBytes, x);
-//
-//                i+=8;
-//            }
-//
-//            while (entry != null) {
-//                Util.int2bytes(etkn, serializedTokenCounts, i);
-//                Util.int2bytes(entry.getIntValue(), serializedTokenCounts, i+4);
-//                entry = itr.next();
-//                etkn = entry.getIntKey();
-//
-//                i+=8;
-//            }
-//
-//            serializedTokenCountsSize = i;
-
         } else {
             serializedTokenCounts = new byte[tokenCounts.size() << 3];
             serializedTokenCountsSize = serializedTokenCounts.length;
@@ -292,17 +240,6 @@ class AccumulativeLazyAPT implements APT {
             kidsOut.writeTo(out);
     }
 
-    public static void main(String[] args) {
-        AccumulativeLazyAPT accumulativeLazyAPT = new AccumulativeLazyAPT();
-        ArrayAPT arrayAPT = ArrayAPT.factory.empty();
-
-        arrayAPT = arrayAPT.withCount(1,3);
-
-        arrayAPT = arrayAPT.withEdge(1, arrayAPT);
-
-        accumulativeLazyAPT.merge(arrayAPT, 1, 0);
-        System.out.println(arrayAPT.equals(accumulativeLazyAPT));
-    }
 
     @Override
     public APT getChild(int relation) {

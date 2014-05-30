@@ -40,7 +40,10 @@ public class ArrayAPT implements APT {
         public ArrayAPT[] fromGraph(RGraph graph) {
             final ArrayAPT[] result = new ArrayAPT[graph.entityIds.length];
 
-            for (RGraph.Relation r : graph.relations) {
+            final int numRelations = graph.numRelations;
+            RGraph.Relation[] relations = graph.relations;
+            for (int i=0; i<numRelations; i++) {
+                RGraph.Relation r = relations[i];
 
                 if (r.governor >= 0) {
                     ArrayAPT parent = result[r.governor];

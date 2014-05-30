@@ -5,10 +5,8 @@ import com.google.common.cache.*;
 import uk.ac.susx.tag.apt.APTFactory;
 import uk.ac.susx.tag.apt.Util;
 
-import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
-import java.io.IOException;
-import java.io.OutputStream;
+import java.io.*;
+import java.util.Arrays;
 import java.util.concurrent.ExecutionException;
 import java.util.zip.GZIPInputStream;
 import java.util.zip.GZIPOutputStream;
@@ -32,12 +30,8 @@ public class CachedAPTStore<T extends APT> implements APTStore<T> {
                     public void onRemoval(RemovalNotification<Integer, T> notification) {
 
                         ByteArrayOutputStream bytesOut = new ByteArrayOutputStream();
-                        OutputStream out = null;
                         try {
-                            out = new GZIPOutputStream(bytesOut);
-                            notification.getValue().writeTo(out);
-                            out.flush();
-                            out.close();
+                            notification.getValue().writeTo(bytesOut);
                             backend.store(Util.int2bytes(notification.getKey()), bytesOut.toByteArray());
                         } catch (IOException e) {
                             throw new RuntimeException(e);
@@ -49,7 +43,11 @@ public class CachedAPTStore<T extends APT> implements APTStore<T> {
                     public T load(Integer integer) throws Exception {
                         byte[] loaded = backend.get(Util.int2bytes(integer));
                         if (loaded != null) {
-                            return factory.read(new GZIPInputStream(new ByteArrayInputStream(loaded)));
+                            try (InputStream in = new ByteArrayInputStream(loaded)) {
+                                return factory.read(in);
+                            } catch (Exception e) {
+                                throw new IOException("MAn alive");
+                            }
                         } else {
                             return factory.empty();
                         }

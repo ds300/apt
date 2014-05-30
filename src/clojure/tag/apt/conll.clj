@@ -28,6 +28,13 @@
                       (when-not (zero? (count acc))
                         (cons (persistent! acc) nil))))))
 
-(defn parse [^Reader rdr]
-  (parse* rdr (transient [])))
+(defn- fnser [fns]
+  (fn [v]
+    (mapv (fn [f val] (f val)) fns v)))
+
+(defn parse
+  ([^Reader rdr]
+    (parse* rdr (transient [])))
+  ([^Reader rdr fns]
+    (map (partial mapv (fnser fns)) (parse rdr))))
 
