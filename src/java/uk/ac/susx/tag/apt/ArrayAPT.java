@@ -504,12 +504,13 @@ public class ArrayAPT implements APT {
         }
 
         int kidsLength = outputOffset - kidsStart;
+        int numKids = edges.length + (returnPath == 0 ? 0 : -1);
 
 
         // write header
         Util.int2bytes(entities.length << 3, bytes, offset);
         Util.int2bytes(kidsLength, bytes, offset + 4);
-        Util.int2bytes(edges.length, bytes, offset + 8);
+        Util.int2bytes(numKids, bytes, offset + 8);
 
         return outputOffset;
     }
@@ -563,12 +564,14 @@ public class ArrayAPT implements APT {
                 if (!doneParent && i == numKids - 1) {
                     edges[i] = returnPath;
                     kids[i] = parent;
+                    doneParent = true;
                 } else {
                     int edge = Util.bytes2int(bytes, offset);
 
                     if (!doneParent && returnPath < edge) {
                         edges[i] = returnPath;
                         kids[i] = parent;
+                        doneParent = true;
                     } else {
                         edges[i] = edge;
                         OffsetAPTTuple t = fromByteArray(bytes, offset + 4, -edge, result);
@@ -577,6 +580,9 @@ public class ArrayAPT implements APT {
                     }
                 }
             }
+
+            result.edges = edges;
+            result.kids = kids;
         }
 
         return new OffsetAPTTuple(offset, result);
@@ -589,7 +595,7 @@ public class ArrayAPT implements APT {
         for (int i=0;i<edges.length;i++) {
             int edge = edges[i];
             if (edge != returnPath) {
-                s += kids[i].size(-edge);
+                s += 4 + kids[i].size(-edge);
             }
         }
 
