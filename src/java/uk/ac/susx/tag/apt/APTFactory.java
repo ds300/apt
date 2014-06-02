@@ -9,11 +9,11 @@ import java.io.InputStream;
  */
 public interface APTFactory<T extends APT> {
     /**
-     * Read and return an APT from the given InputStream
-     * @param inputStream the InputStream
+     * Read and return an APT from the given byte array
+     * @param bytes the byte array
      * @return an APT
      */
-    T read(InputStream inputStream) throws IOException;
+    T fromByteArray(byte[] bytes) throws IOException;
 
     /**
      * Construct an empty APT

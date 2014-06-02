@@ -27,8 +27,8 @@ public class ArrayAPT implements APT {
 
     public static class Factory implements APTFactory<ArrayAPT> {
         @Override
-        public ArrayAPT read(InputStream inputStream) throws IOException {
-            return ArrayAPT.fromStream(inputStream);
+        public ArrayAPT fromByteArray(byte[] bytes) throws IOException {
+            return ArrayAPT.fromByteArray(bytes);
         }
 
         @Override
@@ -582,84 +582,6 @@ public class ArrayAPT implements APT {
         return new OffsetAPTTuple(offset, result);
     }
 
-
-    private static void is4(int i) throws IOException {
-        if (i != 4) throw new IOException("Unexpected end of stream");
-    }
-
-    public static ArrayAPT fromStream(InputStream in) throws IOException {
-        return fromStream(in, 0, null);
-    }
-
-    private static ArrayAPT fromStream(InputStream in, int returnPath, ArrayAPT parent) throws IOException {
-        final ArrayAPT result = new ArrayAPT();
-
-        final byte[] header = new byte[8];
-
-        if (in.read(header) != 8) throw new IOException("Unable to read APT header");
-
-        final int tokensLength = Util.bytes2int(header, 0);
-        final int kidsLength = Util.bytes2int(header, 4);
-
-
-        if (tokensLength % 8 != 0) throw new IOException("corrupt APT header");
-
-        final int numTokens = tokensLength >>> 3;
-
-        byte[] tokenByte = new byte[tokensLength];
-
-        if (in.read(tokenByte) != tokensLength) throw new IOException("insufficient bytes");
-
-        result.entities = new int[numTokens];
-        result.counts = new int[numTokens];
-
-        for (int i=0; i<tokensLength; i+=8) {
-            result.entities[i>>>3] = Util.bytes2int(tokenByte, i);
-            int count = Util.bytes2int(tokenByte, i+4);
-            result.counts[i>>>3] = count;
-            result.sum += count;
-        }
-
-        final byte[] intBuf = new byte[4];
-
-        if (in.read(intBuf) != 4) throw new IOException("unexpected end of input");
-
-        final int numKids = Util.bytes2int(intBuf);
-
-        if (returnPath == 0) {
-            result.edges = new int[numKids];
-            result.kids = new ArrayAPT[numKids];
-            for (int i=0; i<numKids; i++) {
-                if (in.read(intBuf) != 4) throw new IOException("unexpected end of input");
-                int edge = Util.bytes2int(intBuf);
-                result.edges[i] = edge;
-                result.kids[i] = ArrayAPT.fromStream(in, -edge, result);
-            }
-        } else {
-            boolean doneParent = false;
-            result.edges = new int[numKids+1];
-            result.kids = new ArrayAPT[numKids+1];
-            for (int i=0; i<numKids+1; i++) {
-                if (i == numKids && !doneParent) {
-                    result.edges[i] = returnPath;
-                    result.kids[i] = parent;
-                } else {
-                    if (in.read(intBuf) != 4) throw new IOException("unexpected end of input");
-                    int edge = Util.bytes2int(intBuf);
-                    if (!doneParent && edge > returnPath) {
-                        result.edges[i] = returnPath;
-                        result.kids[i] = parent;
-                        i++;
-                        doneParent = true;
-                    }
-                    result.edges[i] = edge;
-                    result.kids[i] = ArrayAPT.fromStream(in, -edge, result);
-                }
-            }
-        }
-
-        return result;
-    }
 
     private int size(int returnPath) {
         int s = 12 + (entities.length << 3);
