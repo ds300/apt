@@ -15,8 +15,8 @@ public class AccumulativeLazyAPT implements APT {
     static class Factory implements APTFactory<AccumulativeLazyAPT> {
 
         @Override
-        public AccumulativeLazyAPT read(InputStream inputStream) throws IOException {
-            return null;
+        public AccumulativeLazyAPT fromByteArray(byte[] bytes) throws IOException {
+            throw new UnsupportedOperationException();
         }
 
         @Override
@@ -52,10 +52,10 @@ public class AccumulativeLazyAPT implements APT {
         return s;
     }
 
-    synchronized byte[] toByteArray() throws IOException {
+    public synchronized byte[] toByteArray() {
         byte[] bytes = new byte[size()];
         int i = toByteArray(bytes, 0);
-        if (i != bytes.length) throw new IOException("sizes don't match");
+        if (i != bytes.length) throw new RuntimeException("sizes don't match");
         frozen = true;
         return bytes;
     }
@@ -309,11 +309,6 @@ public class AccumulativeLazyAPT implements APT {
         apt.edges.put(101, apt3);
         byte[] bytes2 = apt.mergeIntoExisting(bytes);
         System.out.println(Arrays.toString(bytes2));
-    }
-
-    @Override
-    public synchronized void writeTo(OutputStream out) throws IOException {
-        throw new UnsupportedOperationException();
     }
 
 

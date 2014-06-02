@@ -8,13 +8,10 @@
   (:require [clojure.test :refer :all]))
 
 (defn serialize [^APT apt]
-  (with-open [out (ByteArrayOutputStream.)]
-    (.writeTo apt out)
-    (.toByteArray out)))
+  (.toByteArray apt))
 
 (defn deserialize [^bytes bytes ^APTFactory factory]
-  (with-open [in (ByteArrayInputStream. bytes)]
-    (.read factory in)))
+  (.fromByteArray factory bytes))
 
 (defn gz-serialize [^APT apt]
   (with-open [baos (ByteArrayOutputStream.) ]

@@ -29,10 +29,8 @@ public class CachedAPTStore<T extends APT> implements APTStore<T> {
                     @Override
                     public void onRemoval(RemovalNotification<Integer, T> notification) {
 
-                        ByteArrayOutputStream bytesOut = new ByteArrayOutputStream();
                         try {
-                            notification.getValue().writeTo(bytesOut);
-                            backend.store(Util.int2bytes(notification.getKey()), bytesOut.toByteArray());
+                            backend.store(Util.int2bytes(notification.getKey()), notification.getValue().toByteArray());
                         } catch (IOException e) {
                             throw new RuntimeException(e);
                         }
@@ -43,11 +41,7 @@ public class CachedAPTStore<T extends APT> implements APTStore<T> {
                     public T load(Integer integer) throws Exception {
                         byte[] loaded = backend.get(Util.int2bytes(integer));
                         if (loaded != null) {
-                            try (InputStream in = new ByteArrayInputStream(loaded)) {
-                                return factory.read(in);
-                            } catch (Exception e) {
-                                throw new IOException("MAn alive");
-                            }
+                            return factory.fromByteArray(loaded);
                         } else {
                             return factory.empty();
                         }
