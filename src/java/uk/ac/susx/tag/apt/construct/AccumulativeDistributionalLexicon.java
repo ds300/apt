@@ -20,6 +20,38 @@ import java.util.concurrent.atomic.AtomicReference;
 public class AccumulativeDistributionalLexicon implements DistributionalLexicon<AccumulativeLazyAPT> {
 
     private class Store implements APTStore<AccumulativeLazyAPT> {
+        boolean open = true;
+
+        Thread memoryWatcher = new Thread() {
+            Runtime rt = Runtime.getRuntime();
+            double mem() {
+                return (double) (rt.totalMemory() - rt.freeMemory()) / rt.maxMemory();
+            }
+            @Override
+            public void run(){
+                while (open) {
+                    if (mem() > 0.8) {
+                        try {
+                            invalidateAll();
+                        } catch (IOException e) {
+                            throw new RuntimeException(e);
+                        }
+                        System.gc();
+                    }
+                    try {
+                        sleep(1000);
+                    } catch (InterruptedException e) {
+                        throw new RuntimeException(e);
+                    }
+                }
+            }
+        };
+
+        {
+            memoryWatcher.start();
+        }
+
+
         private AtomicReference<APersistentMap> map = new AtomicReference<>(PersistentHashMap.EMPTY);
 
         private void invalidateAll() throws IOException {
@@ -73,7 +105,9 @@ public class AccumulativeDistributionalLexicon implements DistributionalLexicon<
 
         @Override
         public void close() throws IOException {
-
+            invalidateAll();
+            open = false;
+            backend.close();
         }
     }
 
@@ -91,9 +125,15 @@ public class AccumulativeDistributionalLexicon implements DistributionalLexicon<
 
     @Override
     public void include(int entityId, APT apt) throws IOException {
-        AccumulativeLazyAPT existing = store.get(entityId);
-//        existing.merge(apt, depth, 0);
-        store.put(entityId, existing);
+        for (;;) {
+            try {
+                AccumulativeLazyAPT existing = store.get(entityId);
+                existing.merge(apt, depth, 0);
+                store.put(entityId, existing);
+                return;
+            } catch (FrozenException ignored) {
+            }
+        }
     }
 
     @Override

@@ -254,16 +254,7 @@ public class ArrayAPT implements APT {
 
     @Override
     public ArrayAPT merged(APT other, int depth) {
-        if (!(other instanceof ArrayAPT)) {
-            ByteArrayOutputStream out = new ByteArrayOutputStream();
-            try {
-                other.writeTo(out);
-                other = fromStream(new ByteArrayInputStream(out.toByteArray()));
-            } catch (IOException e) {
-                throw new RuntimeException(e);
-            }
-        }
-        return merge(this, (ArrayAPT) other, depth);
+        return merge(this, ensureArrayAPT(other), depth);
     }
 
     @Override
@@ -317,13 +308,7 @@ public class ArrayAPT implements APT {
         if (thing instanceof ArrayAPT) {
             return (ArrayAPT) thing;
         } else {
-            ByteArrayOutputStream out = new ByteArrayOutputStream();
-            try {
-                thing.writeTo(out);
-                return fromStream(new ByteArrayInputStream(out.toByteArray()));
-            } catch (IOException e) {
-                throw new RuntimeException(e);
-            }
+            return fromByteArray(thing.toByteArray());
         }
     }
 
@@ -492,54 +477,111 @@ public class ArrayAPT implements APT {
         return result;
     }
 
+    public byte[] toByteArray() {
+        byte[] bytes = new byte[size(0)];
 
-    public void writeTo(OutputStream out) throws IOException {
-        write(out, 0);
+        if (toByteArray(bytes, 0, 0) != bytes.length) throw new RuntimeException("bad serialization logics");
+
+        return bytes;
     }
 
-    private void write(OutputStream out, int returnPath) throws IOException {
-        byte[] header = new byte[8];
-        // write out the number of bytes for storing token counts;
-        Util.int2bytes(entities.length << 3, header, 0);
-
-        // write out kids
-        byte[] buf = new byte[4];
-        ByteArrayOutputStream kidsOut = new ByteArrayOutputStream();
-
-        // number of kids
-        if (returnPath == 0) {
-            Util.int2bytes(edges.length, buf, 0);
-        } else {
-            Util.int2bytes(edges.length - 1, buf, 0);
+    private int toByteArray(final byte[] bytes, final int offset, final int returnPath) {
+        int outputOffset = offset + 12;
+        for (int i=0; i<entities.length;i++) {
+            Util.int2bytes(entities[i], bytes, outputOffset);
+            Util.int2bytes(counts[i], bytes, outputOffset+4);
+            outputOffset += 8;
         }
-        kidsOut.write(buf);
 
-        for (int i=0; i<kids.length; i++) {
+        int kidsStart = outputOffset;
+
+        for (int i=0; i<edges.length;i++) {
             int edge = edges[i];
             if (edge != returnPath) {
-                Util.int2bytes(edge, buf, 0);
-                kidsOut.write(buf);
-                kids[i].write(kidsOut, -edge);
+                Util.int2bytes(edge, bytes, outputOffset);
+                outputOffset = kids[i].toByteArray(bytes, outputOffset + 4, -edge);
             }
         }
 
-        int kidBytesLength = kidsOut.size();
+        int kidsLength = outputOffset - kidsStart;
 
-        Util.int2bytes(kidBytesLength, header, 4);
 
-        out.write(header);
+        // write header
+        Util.int2bytes(entities.length << 3, bytes, offset);
+        Util.int2bytes(kidsLength, bytes, offset + 4);
+        Util.int2bytes(edges.length, bytes, offset + 8);
 
-        byte[] tokenCounts = new byte[entities.length << 3];
+        return outputOffset;
+    }
 
-        for (int i=0;i< entities.length; i++) {
-            Util.int2bytes(entities[i], tokenCounts, i << 3);
-            Util.int2bytes(counts[i], tokenCounts, (i << 3) + 4);
+    public static ArrayAPT fromByteArray(byte[] bytes) {
+        return fromByteArray(bytes, 0, 0, null).apt;
+    }
+
+    private static class OffsetAPTTuple {
+        private final int offset;
+        private final ArrayAPT apt;
+
+        private OffsetAPTTuple(int offset, ArrayAPT apt) {
+            this.offset = offset;
+            this.apt = apt;
+        }
+    }
+
+    private static OffsetAPTTuple fromByteArray(final byte[] bytes, int offset, final int returnPath, final ArrayAPT parent) {
+        ArrayAPT result = new ArrayAPT();
+
+        final int numEntitites = Util.bytes2int(bytes, offset) >>> 3;
+        final int numKids = Util.bytes2int(bytes, offset + 8) + (parent == null ? 0 : 1);
+
+        offset += 12;
+
+        if (numEntitites > 0) {
+            int[] entities = new int[numEntitites];
+            int[] counts = new int[numEntitites];
+
+            int sum = 0;
+
+            for (int i=0; i < numEntitites; i++) {
+                entities[i] = Util.bytes2int(bytes, offset);
+                counts[i] = Util.bytes2int(bytes, offset + 4);
+                sum += counts[i];
+                offset += 8;
+            }
+
+            result.entities = entities;
+            result.counts = counts;
+            result.sum = sum;
         }
 
-        out.write(tokenCounts);
+        if (numKids > 0) {
+            boolean doneParent = parent == null;
 
-        kidsOut.writeTo(out);
+            int[] edges = new int[numKids];
+            ArrayAPT[] kids = new ArrayAPT[numKids];
+            for (int i=0; i<numKids; i++) {
+                if (!doneParent && i == numKids - 1) {
+                    edges[i] = returnPath;
+                    kids[i] = parent;
+                } else {
+                    int edge = Util.bytes2int(bytes, offset);
+
+                    if (!doneParent && returnPath < edge) {
+                        edges[i] = returnPath;
+                        kids[i] = parent;
+                    } else {
+                        edges[i] = edge;
+                        OffsetAPTTuple t = fromByteArray(bytes, offset + 4, -edge, result);
+                        kids[i] = t.apt;
+                        offset = t.offset;
+                    }
+                }
+            }
+        }
+
+        return new OffsetAPTTuple(offset, result);
     }
+
 
     private static void is4(int i) throws IOException {
         if (i != 4) throw new IOException("Unexpected end of stream");
@@ -617,6 +659,19 @@ public class ArrayAPT implements APT {
         }
 
         return result;
+    }
+
+    private int size(int returnPath) {
+        int s = 12 + (entities.length << 3);
+
+        for (int i=0;i<edges.length;i++) {
+            int edge = edges[i];
+            if (edge != returnPath) {
+                s += kids[i].size(-edge);
+            }
+        }
+
+        return s;
     }
 
     private boolean equals(ArrayAPT other, int returnPath) {

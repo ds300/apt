@@ -7,7 +7,7 @@ import it.unimi.dsi.fastutil.ints.Int2ObjectSortedMap;
  * Interfaces specifying the core operations of Anchored Packed Trees (APTs)
  * @author ds300
  */
-public interface APT extends Writable {
+public interface APT {
     /**
      * Get the child node of this APT matching the specified relation, or null if no such child exists.
      * @param relation the ID of the relation
@@ -79,5 +79,21 @@ public interface APT extends Writable {
      */
     APT withEdge(int dependencyId, APT child);
 
+    /**
+     * Serializes the APT to byte format. The format is as follows (integers in big-endian)
+     *    int: number of bytes to store entity-count pairs
+     *    int: number of bytes to store children
+     *    int: number of children
+     *    (int int)*: entity-count pairs stored serially in ascending order of key
+     *                e.g. the map {0: 1, 3: 4} would be 0x00000000 00000001 00000003 00000004
+     *    (int APT)*: relation-child paris stored serially in ascending order of relation id, where APT is the format
+     *                described here.
+     *
+     * Byte arrays are used for (de)serialization rather than output streams for the sake of minimizing allocations,
+     * especially during serialization.
+     *
+     * @return the serialized byte array.
+     */
+    byte[] toByteArray();
 }
 

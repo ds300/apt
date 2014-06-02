@@ -127,18 +127,5 @@ nothing
                             BufferedReader.)]
   (time (do (count (parse in)))))
 
-(try
-  (time (do-integration-test))
-  (catch Throwable e
-         (println "fuck fuck fuck" e)
 
-         ))
-
-(defn mem []
-  (let [rt (Runtime/getRuntime)]
-    (double
-      (/ (- (.totalMemory rt) (.freeMemory rt))
-         (.maxMemory rt)))))
-
-(mem)
 
