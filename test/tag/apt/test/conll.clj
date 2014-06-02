@@ -133,3 +133,12 @@ nothing
          (println "fuck fuck fuck" e)
 
          ))
+
+(defn mem []
+  (let [rt (Runtime/getRuntime)]
+    (double
+      (/ (- (.totalMemory rt) (.freeMemory rt))
+         (.maxMemory rt)))))
+
+(mem)
+

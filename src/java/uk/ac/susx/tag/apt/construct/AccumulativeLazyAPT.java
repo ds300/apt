@@ -1,10 +1,10 @@
 package uk.ac.susx.tag.apt.construct;
 
 import it.unimi.dsi.fastutil.ints.*;
-import it.unimi.dsi.fastutil.objects.ObjectBidirectionalIterator;
 import uk.ac.susx.tag.apt.*;
 
 import java.io.*;
+import java.util.Arrays;
 
 /**
  * Does things lazily for ultra-efficient distributional lexicon creation. This shouldn't be used manually.
@@ -16,7 +16,7 @@ public class AccumulativeLazyAPT implements APT {
 
         @Override
         public AccumulativeLazyAPT read(InputStream inputStream) throws IOException {
-            return fromInputStream(inputStream);
+            return null;
         }
 
         @Override
@@ -30,61 +30,258 @@ public class AccumulativeLazyAPT implements APT {
         }
     }
 
-    // store bytes here for lazy stuff
-    byte[] childrenBytes;
 
-    // don't populate the map with token counts from disk. We only need to read them when re-serializing
-    byte[] tokenCountBytes;
 
     // use tree based maps for fast insertion when things get massive
     Int2IntRBTreeCounter tokenCounts;
     Int2ObjectRBTreeMap<AccumulativeLazyAPT> edges;
+    private boolean frozen = false;
 
     public AccumulativeLazyAPT() {
         tokenCounts = new Int2IntRBTreeCounter();
         edges = new Int2ObjectRBTreeMap<>();
     }
 
-    private AccumulativeLazyAPT(byte[] childrenBytes, byte[] tokenCountBytes) {
-        this.childrenBytes = childrenBytes;
-        this.tokenCountBytes = tokenCountBytes;
+    private int size() {
+        int s = 8 + 4; // header + numkids
+        s += tokenCounts.size() << 3;
+        s += 4 * edges.size(); // edge labels
+        for (AccumulativeLazyAPT apt : edges.values()) {
+            s += apt.size();
+        }
+        return s;
     }
 
-    private void ensureTokenCounts () {
-        if (tokenCounts == null) {
-            tokenCounts = new Int2IntRBTreeCounter();
+    synchronized byte[] toByteArray() throws IOException {
+        byte[] bytes = new byte[size()];
+        int i = toByteArray(bytes, 0);
+        if (i != bytes.length) throw new IOException("sizes don't match");
+        frozen = true;
+        return bytes;
+    }
+
+    private int toByteArray(final byte[] bytes, final int offset) {
+        // header is three integers:
+        //  1.  number of bytes for token counts
+        //  2.  number of bytes for children
+        //  3.  number of children
+
+        Util.int2bytes(tokenCounts.size() << 3, bytes, offset); // 1
+        // 2 calculated later
+        Util.int2bytes(edges.size(), bytes, offset + 8); // 3
+
+        // then serialize token counts
+        int i = offset + 12;
+        for (Int2IntMap.Entry entry : tokenCounts.int2IntEntrySet()) {
+            Util.int2bytes(entry.getIntKey(), bytes, i);
+            Util.int2bytes(entry.getIntValue(), bytes, i+4);
+            i+=8;
+        }
+
+        // now serialize children
+        int j = i;
+        for (Int2ObjectMap.Entry<AccumulativeLazyAPT> entry : edges.int2ObjectEntrySet()) {
+            // label
+            Util.int2bytes(entry.getIntKey(), bytes, j);
+            // child
+            j = entry.getValue().toByteArray(bytes, j+4);
+        }
+
+        Util.int2bytes(j - i, bytes, offset + 4); // 2
+
+        return j;
+    }
+
+    static class OffsetTuple {
+        final int e;
+        final int b;
+
+        OffsetTuple(int e, int b) {
+            this.e = e;
+            this.b = b;
         }
     }
 
-    private void ensureEdges() {
-        if (childrenBytes != null) {
-            edges = new Int2ObjectRBTreeMap<>();
-            int numChildren = Util.bytes2int(childrenBytes, 0);
-            final byte[] buf = new byte[4];
-            ByteArrayInputStream in = new ByteArrayInputStream(childrenBytes, 4, childrenBytes.length - 4);
-            for (int i=0; i<numChildren; i++) {
-                in.read(buf, 0, 4);
-                int edge = Util.bytes2int(buf);
-                try {
-                    AccumulativeLazyAPT child = fromInputStream(in);
-                    edges.put(edge, child);
-                } catch (IOException e) {
-                    throw new RuntimeException(e);
+    synchronized byte[] mergeIntoExisting (byte[] existing) {
+        byte[] bytes = new byte[size() + existing.length]; // (probably slightly bigger than) worst-case size
+        int i = mergeIntoExisting(existing, 0, bytes, 0).b;
+        frozen = true;
+        return Arrays.copyOf(bytes, i);
+    }
+
+    private OffsetTuple mergeIntoExisting(final byte[] existing, final int existingOffset, final byte[] bytes, final int bytesOffset) {
+        final int existingTokenCountSize = Util.bytes2int(existing, existingOffset);
+        final int existingKidsSize = Util.bytes2int(existing, existingOffset + 4);
+        // mutable variants of offset pointers
+
+        // declare header numbers here and serialize them at the end.
+        final int tokenCountsSize;
+        final int kidsSize;
+        final int numKids;
+
+        if (tokenCounts.size() == 0) {
+            // I don't think it's possible for this branch to be taken, but better safe than sorry I s'pose.
+            tokenCountsSize = existingTokenCountSize;
+            System.arraycopy(existing, existingOffset, bytes, bytesOffset, tokenCountsSize + 12);  // + 12 for header
+        } else {
+            // merge
+            int outOffset = bytesOffset + 12; // skip header
+
+            final int numNewCounts = tokenCounts.size();
+
+            final int existingCountsStart = existingOffset + 12;
+            final int existingCountsEnd = existingCountsStart + existingTokenCountSize;
+
+
+            // i iterates over bytes in existing
+            int i = existingCountsStart;
+            // j iterates over new (id, count) pairs in tokenCounts
+            int j = 0;
+
+            // pull new counts out of map into array for a simpler merge loop.
+            int[] newTokenCounts = new int[numNewCounts * 2];
+
+            for (Int2IntMap.Entry e : tokenCounts.int2IntEntrySet()) {
+                newTokenCounts[j++] = e.getIntKey();
+                newTokenCounts[j++] = e.getIntValue();
+            }
+
+            j = 0;
+
+
+            // now iterate over arrays in parallel, merge-sort style
+            while (i < existingCountsEnd && j < numNewCounts) {
+                int existingEntityID = Util.bytes2int(existing, i);
+                int newEntityID = newTokenCounts[j << 1];
+
+                if (newEntityID == existingEntityID) {
+                    // new counts for an entity already seen, so add the new ones to the existing ones
+                    int count = newTokenCounts[(j << 1) + 1] + Util.bytes2int(existing, i + 4);
+                    Util.int2bytes(newEntityID, bytes, outOffset);
+                    Util.int2bytes(count, bytes, outOffset+4);
+                    outOffset += 8;
+                    i += 8;
+                    j++;
+                } else if (newEntityID < existingEntityID) {
+                    // new entity not previously seen
+                    int count = newTokenCounts[(j << 1) + 1];
+                    Util.int2bytes(newEntityID, bytes, outOffset);
+                    Util.int2bytes(count, bytes, outOffset+4);
+                    outOffset += 8;
+                    j++;
+                } else {
+                    // existing entity with no new counts, just copy the bytes
+                    System.arraycopy(existing, i, bytes, outOffset, 8);
+                    outOffset += 8;
+                    i += 8;
                 }
             }
 
-            childrenBytes = null;
+            // serialize any remaining existing counts
+            if (i < existingCountsEnd) {
+                int numBytesRemaining = existingCountsEnd - i;
+                System.arraycopy(existing, i, bytes, outOffset, numBytesRemaining);
+                outOffset += numBytesRemaining;
+            }
+
+            // or any remaining new counts
+            while (j < numNewCounts) {
+                Util.int2bytes(newTokenCounts[j << 1], bytes, outOffset);
+                Util.int2bytes(newTokenCounts[(j << 1) + 1], bytes, outOffset + 4);
+                outOffset += 8;
+                j++;
+            }
+
+            tokenCountsSize = outOffset - (bytesOffset + 12);
         }
+
+        if (edges.size() == 0) {
+            // just copy the kids over.
+            System.arraycopy(existing, existingOffset + 12 + existingTokenCountSize, bytes, bytesOffset + 12 + tokenCountsSize, existingKidsSize);
+            kidsSize = existingKidsSize;
+            numKids = Util.bytes2int(existing, existingOffset + 8);
+
+        } else {
+            // merge
+            int uniqueKids = 0;
+
+            final int existingKidsEnd = existingOffset + 12 + existingTokenCountSize + existingKidsSize;
+
+            final int[] newEdges = edges.keySet().toIntArray(); // sorted.
+
+            // i iterates over bytes in existing
+            int i = existingOffset + 12 + existingTokenCountSize;
+            // j iterates over newEdges
+            int j = 0;
+
+            int outputOffset = bytesOffset + 12 + tokenCountsSize;
+
+            // iterate over arrays in parallel merge-sort style
+            while (i < existingKidsEnd && j < newEdges.length) {
+                int existingEdge = Util.bytes2int(existing, i);
+                int newEdge = newEdges[j];
+
+                if (existingEdge == newEdge) {
+                    // existing edge and new edge, so they need merging.
+                    Util.int2bytes(existingEdge, bytes, outputOffset); // write out label
+                    OffsetTuple t = edges.get(existingEdge).mergeIntoExisting(existing, i + 4, bytes, outputOffset + 4);
+                    i = t.e;
+                    outputOffset = t.b;
+                    j++;
+                } else if (existingEdge < newEdge) {
+                    // calculate size of kid (including edge label) so we can just use System.arrayCopy
+                    int storedKidSize = Util.bytes2int(existing, i+4) //tkncounts size
+                            + Util.bytes2int(existing, i+8) // kids size
+                            + 12 // header
+                            + 4; // edge label
+                    System.arraycopy(existing, i, bytes, outputOffset, storedKidSize); // + 4 for edge label
+                    i += storedKidSize;
+                    outputOffset += storedKidSize;
+                } else {
+                    // new edge, so just write out label and then .toByteArray
+                    Util.int2bytes(newEdge, bytes, outputOffset);
+                    outputOffset = edges.get(newEdge).toByteArray(bytes, outputOffset + 4);
+                    j++;
+                }
+                uniqueKids++;
+            }
+
+            // copy over any remaining existing edges
+            if (i < existingKidsEnd) {
+                int remainingBytes = existingKidsEnd - i;
+                System.arraycopy(existing, i, bytes, outputOffset, remainingBytes); // + 4 for edge label
+                outputOffset += remainingBytes;
+            }
+
+            // or serialize any remaining new edges
+            while (j < newEdges.length) {
+                int newEdge = newEdges[j];
+                Util.int2bytes(newEdge, bytes, outputOffset);
+                outputOffset = edges.get(newEdge).toByteArray(bytes, outputOffset + 4);
+                j++;
+            }
+
+            kidsSize = outputOffset - (tokenCountsSize + 12);
+            numKids = uniqueKids;
+        }
+
+        // write out header
+        Util.int2bytes(tokenCountsSize, bytes, bytesOffset);
+        Util.int2bytes(kidsSize, bytes, bytesOffset + 4);
+        Util.int2bytes(numKids, bytes, bytesOffset + 8);
+
+        return new OffsetTuple(existingOffset + 12 + existingKidsSize + existingTokenCountSize, bytesOffset + 12 + tokenCountsSize + kidsSize);
     }
 
-    synchronized void merge (APT other, int depth, int returnPath) {
-        ensureTokenCounts();
+    synchronized void merge (APT other, int depth, int returnPath) throws FrozenException {
+
+        if (frozen) throw new FrozenException();
+
         for (Int2IntMap.Entry e : other.entityCounts().int2IntEntrySet()) {
             tokenCounts.increment(e.getIntKey(), e.getIntValue());
         }
 
         if (depth > 0) {
-            ensureEdges();
             for (Int2ObjectMap.Entry<APT> e : other.edges().int2ObjectEntrySet()) {
                 int edge = e.getIntKey();
                 if (edge != returnPath) {
@@ -96,148 +293,27 @@ public class AccumulativeLazyAPT implements APT {
                     existing.merge(e.getValue(), depth-1, -edge);
                 }
             }
-
         }
 
     }
 
-    public static AccumulativeLazyAPT fromInputStream (InputStream in) throws IOException {
-        byte[] header = new byte[8];
-        if (Util.read(in, header, 0, 8) != 8) throw new IOException("unexpected end of stream");
-        int numTokenBytes = Util.bytes2int(header, 0);
-        int numChildrenBytes = Util.bytes2int(header, 4);
-        byte[] tokenBytes = new byte[numTokenBytes];
-        byte[] childrenBytes = new byte[numChildrenBytes];
-        if (Util.read(in, tokenBytes, 0, numTokenBytes) != numTokenBytes) throw new IOException("unexpected end of stream");
-        if (Util.read(in, childrenBytes, 0, numChildrenBytes) != numChildrenBytes) throw new IOException("unexpected end of stream");
-        return new AccumulativeLazyAPT(childrenBytes, tokenBytes);
+    public static void main(String[] args) throws IOException, FrozenException {
+        AccumulativeLazyAPT apt = new AccumulativeLazyAPT();
+        AccumulativeLazyAPT apt2 = new AccumulativeLazyAPT();
+        AccumulativeLazyAPT apt3 = new AccumulativeLazyAPT();
+        apt.tokenCounts.increment(5, 10);
+        apt2.edges.put(15, apt);
+        apt3.tokenCounts.increment(7, 14);
+        byte[] bytes = apt2.toByteArray();
+        System.out.println(Arrays.toString(bytes));
+        apt.edges.put(101, apt3);
+        byte[] bytes2 = apt.mergeIntoExisting(bytes);
+        System.out.println(Arrays.toString(bytes2));
     }
 
     @Override
     public synchronized void writeTo(OutputStream out) throws IOException {
-        byte[] header = new byte[8];
-
-        byte[] serializedTokenCounts;
-        int serializedTokenCountsSize;
-
-        if (tokenCounts == null) {
-            serializedTokenCounts = tokenCountBytes == null ? new byte[0] : tokenCountBytes;
-            serializedTokenCountsSize = serializedTokenCounts.length;
-        } else if (tokenCountBytes != null && tokenCountBytes.length > 0 && !tokenCounts.isEmpty()) {
-            // worst-case size
-            serializedTokenCounts = new byte[tokenCountBytes.length + (tokenCounts.size() << 3)];
-
-            // merge tokenCounts and tokenCountBytes
-            final int numStoredCounts = tokenCountBytes.length >>> 3;
-            final int numNewCounts = tokenCounts.size();
-
-            int i = 0;
-            int j = 0;
-            int x = 0;
-
-            int[] newTokenCounts = new int[numNewCounts * 2];
-
-            for (Int2IntMap.Entry e : tokenCounts.int2IntEntrySet()) {
-                newTokenCounts[j++] = e.getIntKey();
-                newTokenCounts[j++] = e.getIntValue();
-            }
-
-            j = 0;
-
-
-
-            while (i < numStoredCounts && j < numNewCounts) {
-                int storedEntityID = Util.bytes2int(tokenCountBytes, i << 3);
-                int newEntityID = newTokenCounts[j << 1];
-
-                if (newEntityID == storedEntityID) {
-                    int count = newTokenCounts[(j << 1) + 1] + Util.bytes2int(tokenCountBytes, (i<<3) + 4);
-                    Util.int2bytes(newEntityID, serializedTokenCounts, x);
-                    Util.int2bytes(count, serializedTokenCounts, x+4);
-                    x += 8;
-                    j++;
-                    i++;
-                } else if (newEntityID < storedEntityID) {
-                    int count = newTokenCounts[(j << 1) + 1];
-                    Util.int2bytes(newEntityID, serializedTokenCounts, x);
-                    Util.int2bytes(count, serializedTokenCounts, x+4);
-                    x += 8;
-                    j++;
-                } else {
-                    System.arraycopy(tokenCountBytes, i << 3, serializedTokenCounts, x, 8);
-                    x += 8;
-                    i++;
-                }
-            }
-
-            while (i < numStoredCounts) {
-                System.arraycopy(tokenCountBytes, i << 3, serializedTokenCounts, x, 8);
-                x += 8;
-                i++;
-            }
-
-            while (j < numNewCounts) {
-                Util.int2bytes(newTokenCounts[j << 1], serializedTokenCounts, x);
-                Util.int2bytes(newTokenCounts[(j << 1) + 1], serializedTokenCounts, x + 4);
-                x += 8;
-                j++;
-            }
-
-            serializedTokenCountsSize = x;
-
-        } else {
-            serializedTokenCounts = new byte[tokenCounts.size() << 3];
-            serializedTokenCountsSize = serializedTokenCounts.length;
-
-            int i=0;
-            for (Int2IntMap.Entry entry : tokenCounts.int2IntEntrySet()) {
-                Util.int2bytes(entry.getIntKey(), serializedTokenCounts, i);
-                Util.int2bytes(entry.getIntValue(), serializedTokenCounts, i+4);
-                i+=8;
-            }
-        }
-
-        byte[] kidBytes;
-        ByteArrayOutputStream kidsOut;
-
-        if (edges == null) {
-            kidBytes = childrenBytes;
-            kidsOut = null;
-        } else {
-            kidBytes = null;
-            kidsOut = new ByteArrayOutputStream();
-
-            byte[] buf = new byte[4];
-
-            Util.int2bytes(edges.size(), buf, 0);
-
-            kidsOut.write(buf);
-
-            for (Int2ObjectMap.Entry<AccumulativeLazyAPT> entry : edges.int2ObjectEntrySet()) {
-                Util.int2bytes(entry.getIntKey(), buf, 0);
-                try {
-                    kidsOut.write(buf);
-                } catch (IOException e) {
-                    throw new RuntimeException(e);
-                }
-                entry.getValue().writeTo(kidsOut);
-            }
-        }
-
-        Util.int2bytes(serializedTokenCountsSize, header, 0);
-
-        if (kidBytes != null)
-            Util.int2bytes(kidBytes.length, header, 4);
-        else
-            Util.int2bytes(kidsOut.size(), header, 4);
-
-        out.write(header);
-        out.write(serializedTokenCounts, 0, serializedTokenCountsSize);
-
-        if (kidBytes != null)
-            out.write(kidBytes);
-        else
-            kidsOut.writeTo(out);
+        throw new UnsupportedOperationException();
     }
 
 
