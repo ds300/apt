@@ -1,19 +1,12 @@
-package uk.ac.susx.tag.apt.construct;
+package uk.ac.susx.tag.apt;
 
 import clojure.lang.APersistentMap;
 import clojure.lang.PersistentHashMap;
-import uk.ac.susx.tag.apt.APT;
-import uk.ac.susx.tag.apt.APTFactory;
-import uk.ac.susx.tag.apt.DistributionalLexicon;
-import uk.ac.susx.tag.apt.Util;
 import uk.ac.susx.tag.apt.store.APTStore;
 import uk.ac.susx.tag.apt.store.PersistentKVStore;
 
-import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.util.Map;
-import java.util.concurrent.Callable;
-import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * @author ds300

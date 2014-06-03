@@ -1,7 +1,6 @@
-package uk.ac.susx.tag.apt.construct;
+package uk.ac.susx.tag.apt;
 
 import it.unimi.dsi.fastutil.ints.*;
-import uk.ac.susx.tag.apt.*;
 
 import java.io.*;
 import java.util.Arrays;
@@ -321,24 +320,50 @@ public class AccumulativeLazyAPT implements APT {
 
         if (frozen) throw new FrozenException();
 
-        for (Int2IntMap.Entry e : other.entityCounts().int2IntEntrySet()) {
-            tokenCounts.increment(e.getIntKey(), e.getIntValue());
-        }
+        if (other instanceof ArrayAPT) {
+            mergeArrayAPT((ArrayAPT) other, depth, returnPath);
+        } else {
+            for (Int2IntMap.Entry e : other.entityCounts().int2IntEntrySet()) {
+                tokenCounts.increment(e.getIntKey(), e.getIntValue());
+            }
 
-        if (depth > 0) {
-            for (Int2ObjectMap.Entry<APT> e : other.edges().int2ObjectEntrySet()) {
-                int edge = e.getIntKey();
-                if (edge != returnPath) {
-                    AccumulativeLazyAPT existing = edges.get(e.getIntKey());
-                    if (existing == null) {
-                        existing = new AccumulativeLazyAPT();
-                        edges.put(e.getIntKey(), existing);
+            if (depth > 0) {
+                for (Int2ObjectMap.Entry<APT> e : other.edges().int2ObjectEntrySet()) {
+                    int edge = e.getIntKey();
+                    if (edge != returnPath) {
+                        AccumulativeLazyAPT existing = edges.get(e.getIntKey());
+                        if (existing == null) {
+                            existing = new AccumulativeLazyAPT();
+                            edges.put(e.getIntKey(), existing);
+                        }
+                        existing.merge(e.getValue(), depth-1, -edge);
                     }
-                    existing.merge(e.getValue(), depth-1, -edge);
                 }
             }
         }
+    }
 
+    private void mergeArrayAPT(ArrayAPT other, int depth, int returnPath) {
+        int[] entities = other.entities;
+        int[] counts = other.counts;
+        for (int i=0; i < entities.length; i++)
+            tokenCounts.increment(entities[i], counts[i]);
+
+        if (depth > 0) {
+            int[] oedges = other.edges;
+            ArrayAPT[] okids = other.kids;
+            for (int i=0; i<oedges.length; i++) {
+                int edge = oedges[i];
+                if (edge != returnPath) {
+                    AccumulativeLazyAPT existing = edges.get(edge);
+                    if (existing == null) {
+                        existing = new AccumulativeLazyAPT();
+                        edges.put(edge, existing);
+                    }
+                    existing.mergeArrayAPT(okids[i], depth-1, -edge);
+                }
+            }
+        }
     }
 
 

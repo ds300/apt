@@ -2,7 +2,7 @@
   (:import (java.io StringReader FileInputStream InputStreamReader BufferedReader)
            (uk.ac.susx.tag.apt RGraph ArrayAPT$Factory DistributionalLexicon)
            (uk.ac.susx.tag.apt.store CachedAPTStore CachedAPTStore$Builder)
-           (uk.ac.susx.tag.apt.construct AccumulativeDistributionalLexicon)
+           (uk.ac.susx.tag.apt AccumulativeDistributionalLexicon)
            (java.util.zip GZIPInputStream))
   (:require [tag.apt.conll :refer [parse]])
   (:require [clojure.test :refer :all]
@@ -109,8 +109,7 @@ nothing
                             (InputStreamReader. "utf-8")
                             BufferedReader.)]
       (dorun
-        (pmapall-chunked 200
+        (pmapall-chunked 20
                          (fn [sent] (include! lexicon (to-graph tkn-index dep-index sent)))
                          (parse in))))))
-
 

@@ -15,10 +15,10 @@ public class ArrayAPT implements APT {
     private static final int[] EMPTY_INTS = new int[0];
     private static final ArrayAPT[] EMPTY_KIDS = new ArrayAPT[0];
 
-    private int[] edges  = EMPTY_INTS;
-    private ArrayAPT[] kids = EMPTY_KIDS;
-    private int[] entities = EMPTY_INTS;
-    private int[] counts = EMPTY_INTS;
+    int[] edges  = EMPTY_INTS;
+    ArrayAPT[] kids = EMPTY_KIDS;
+    int[] entities = EMPTY_INTS;
+    int[] counts = EMPTY_INTS;
     private int sum = 0;
 
     private ArrayAPT() {}

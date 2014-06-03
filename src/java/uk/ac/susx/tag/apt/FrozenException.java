@@ -1,4 +1,4 @@
-package uk.ac.susx.tag.apt.construct;
+package uk.ac.susx.tag.apt;
 
 /**
  * @author ds300
