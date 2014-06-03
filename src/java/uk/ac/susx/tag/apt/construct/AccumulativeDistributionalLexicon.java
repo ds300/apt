@@ -35,6 +35,7 @@ public class AccumulativeDistributionalLexicon implements DistributionalLexicon<
                 while (open) {
                     if (mem() > memoryFullThreshold) {
                         try {
+                            System.out.println("invalidating: " + mem());
                             invalidateAll();
                         } catch (IOException e) {
                             throw new RuntimeException(e);
@@ -54,14 +55,13 @@ public class AccumulativeDistributionalLexicon implements DistributionalLexicon<
         }
 
 
-        private AtomicReference<APersistentMap> map = new AtomicReference<>(PersistentHashMap.EMPTY);
+        private APersistentMap map = PersistentHashMap.EMPTY;
 
-        private void invalidateAll() throws IOException {
-            APersistentMap m;
-            for (;;) {
-                m = map.get();
-                if (map.compareAndSet(m, PersistentHashMap.EMPTY)) break;
-            }
+        private synchronized void invalidateAll() throws IOException {
+            System.out.println("invalidating...");
+            System.out.flush();
+            APersistentMap m = map;
+            map = PersistentHashMap.EMPTY;
 
             byte[] key = new byte[4];
 
@@ -76,39 +76,29 @@ public class AccumulativeDistributionalLexicon implements DistributionalLexicon<
                 } else {
                     backend.store(key, apt.toByteArray());
                 }
-                System.gc();
             }
         }
 
         @Override
         public AccumulativeLazyAPT get(int key) throws IOException {
-            for (;;) {
-                APersistentMap m = map.get();
-                Object apt = m.valAt(key);
-                if (apt != null) {
-                    return (AccumulativeLazyAPT) apt;
-                } else {
-                    AccumulativeLazyAPT e = factory.empty();
-                    APersistentMap withNewApt = (APersistentMap) m.assoc(key, e);
-                    if (map.compareAndSet(m, withNewApt)) {
-                        return e;
-                    }
-                }
+            Object apt = map.valAt(key);
+            if (apt == null) {
+                AccumulativeLazyAPT e = factory.empty();
+                put(key, e);
+                return e;
+            } else {
+                return (AccumulativeLazyAPT) apt;
             }
         }
 
         @Override
         public boolean has(int key) throws IOException {
-            return map.get().containsKey(key);
+            return map.containsKey(key);
         }
 
         @Override
-        public void put(int key, AccumulativeLazyAPT apt) throws IOException {
-            for (;;) {
-                APersistentMap m = map.get();
-                APersistentMap m2 = (APersistentMap) m.assoc(key, apt);
-                if (map.compareAndSet(m, m2)) return;
-            }
+        public synchronized void put(int key, AccumulativeLazyAPT apt) throws IOException {
+            map = (APersistentMap) map.assoc(key, apt);
         }
 
         @Override

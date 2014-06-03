@@ -103,29 +103,16 @@ nothing
 (defn do-integration-test []
   (let [tkn-index     (indexer)
         dep-index     (relation-indexer)
-        backend       (util/in-memory-byte-store)
-        store-builder (-> (new CachedAPTStore$Builder)
-                        (.setBackend backend)
-                        (.setMaxItems 1))
-        ;store-builder (util/in-memory-apt-store-builder)
-        ]
-    (with-open [lexicon (AccumulativeDistributionalLexicon. store-builder 4)
+        backend       (util/in-memory-byte-store)]
+    (with-open [lexicon (AccumulativeDistributionalLexicon. backend 4)
                 in      (-> "giga-conll/nyt_cna_eng_201012conll.gz"
                             FileInputStream.
                             GZIPInputStream.
                             (InputStreamReader. "utf-8")
                             BufferedReader.)]
       (dorun
-        (pmapall-chunked 20
+        (pmapall-chunked 200
                          (fn [sent] (include! lexicon (to-graph tkn-index dep-index sent)))
-                         (take 5000 (parse in)))))))
-
-(with-open [in (-> "giga-conll/nyt_cna_eng_201012conll.gz"
-                            FileInputStream.
-                            GZIPInputStream.
-                            (InputStreamReader. "utf-8")
-                            BufferedReader.)]
-  (time (do (count (parse in)))))
-
+                         (parse in))))))
 
 
