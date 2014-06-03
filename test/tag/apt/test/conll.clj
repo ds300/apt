@@ -89,15 +89,6 @@ nothing
 (def factory (new ArrayAPT$Factory))
 (def empty (.empty factory))
 
-(defn include! [^DistributionalLexicon lexicon graph]
-  (let [apts (.fromGraph factory graph)
-        tknids (.entityIds graph)]
-    (dotimes [i (count tknids)]
-      (let [apt (aget apts i)
-            id  (aget tknids i)]
-        (when (and apt (not= empty apt))
-          (.include lexicon id apt))))))
-
 (defn do-integration-test []
   (let [tkn-index     (indexer)
         dep-index     (relation-indexer)
@@ -110,6 +101,7 @@ nothing
                             BufferedReader.)]
       (dorun
         (pmapall-chunked 20
-                         (fn [sent] (include! lexicon (to-graph tkn-index dep-index sent)))
+                         (fn [sent] (.include lexicon (to-graph tkn-index dep-index sent)))
                          (parse in))))))
 
+(time (do-integration-test))

@@ -127,6 +127,18 @@ public class AccumulativeDistributionalLexicon implements DistributionalLexicon<
         }
     }
 
+    final ArrayAPT.Factory aaptFactory = new ArrayAPT.Factory();
+
+    public void include(RGraph graph) throws IOException {
+        ArrayAPT[] apts = aaptFactory.fromGraph(graph);
+        for (int i=0; i<apts.length; i++) {
+            ArrayAPT apt = apts[i];
+            if (apt != null) {
+                include(graph.entityIds[i], apt);
+            }
+        }
+    }
+
     public AccumulativeDistributionalLexicon setMemoryFullThreshold(double d) {
         if (d <=0 || d >= 1) throw new IllegalArgumentException("d must be between 0 and 1 exclusive");
 
