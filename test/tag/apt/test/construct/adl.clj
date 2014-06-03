@@ -42,4 +42,3 @@
         (is (Arrays/equals from-backend reference))
         (is (Arrays/equals from-cached-backend reference))))))
 
-(time (laziness))

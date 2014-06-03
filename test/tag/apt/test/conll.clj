@@ -73,8 +73,6 @@ nothing
   (is (= expected2 (parse (StringReader. text2) [(comp keyword clojure.string/reverse) #(Integer. %) (comp #(* 2 %) #(Integer. %))]))))
 
 
-
-
 (defn to-graph [tkn-index dep-index sent]
   (let [graph (RGraph. (count sent))
         ids   (.entityIds graph)]
