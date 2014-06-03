@@ -10,3 +10,4 @@ pom.xml.asc
 .idea/*
 *.idm
 /giga-conll
+/data

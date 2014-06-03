@@ -3,10 +3,10 @@
            (uk.ac.susx.tag.apt.store PersistentKVStore))
   )
 
-(def ^:dynamic *env-config* (-> (EnvironmentConfig.)
+(def ^:dynamic *env-config* (doto (EnvironmentConfig.)
                                 (.setAllowCreate true)))
 
-(def ^:dynamic *db-config* (-> (DatabaseConfig.)
+(def ^:dynamic *db-config* (doto (DatabaseConfig.)
                                (.setAllowCreate true)))
 
 
@@ -26,3 +26,4 @@
       (close [this]
         (.close db)
         (.close env)))))
+

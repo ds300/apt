@@ -4,7 +4,8 @@
            (uk.ac.susx.tag.apt.store CachedAPTStore CachedAPTStore$Builder)
            (uk.ac.susx.tag.apt AccumulativeDistributionalLexicon)
            (java.util.zip GZIPInputStream))
-  (:require [tag.apt.conll :refer [parse]])
+  (:require [tag.apt.conll :refer [parse]]
+            [tag.apt.backend.db :as db])
   (:require [clojure.test :refer :all]
             [tag.apt.util :refer [pmapall-chunked]]
             [tag.apt.test.util :as util]
@@ -104,4 +105,20 @@ nothing
                          (fn [sent] (.include lexicon (to-graph tkn-index dep-index sent)))
                          (parse in))))))
 
-(time (do-integration-test))
+
+(defn do-berkeley-test []
+  (let [tkn-index     (indexer)
+        dep-index     (relation-indexer)
+        backend       (db/db-byte-store "data" "test")]
+    (with-open [lexicon (AccumulativeDistributionalLexicon. backend 4)
+                in      (-> "giga-conll/nyt_cna_eng_201012conll.gz"
+                            FileInputStream.
+                            GZIPInputStream.
+                            (InputStreamReader. "utf-8")
+                            BufferedReader.)]
+      (dorun
+        (pmapall-chunked 20
+                         (fn [sent] (.include lexicon (to-graph tkn-index dep-index sent)))
+                         (parse in))))))
+
+(time (do-berkeley-test))
