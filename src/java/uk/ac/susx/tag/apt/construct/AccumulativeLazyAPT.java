@@ -54,8 +54,7 @@ public class AccumulativeLazyAPT implements APT {
 
     public synchronized byte[] toByteArray() {
         byte[] bytes = new byte[size()];
-        int i = toByteArray(bytes, 0);
-        if (i != bytes.length) throw new RuntimeException("sizes don't match");
+        toByteArray(bytes, 0);
         frozen = true;
         return bytes;
     }
@@ -104,10 +103,31 @@ public class AccumulativeLazyAPT implements APT {
 
     synchronized byte[] mergeIntoExisting (byte[] existing) {
         byte[] bytes = new byte[size() + existing.length]; // (probably slightly bigger than) worst-case size
+//        expected = ArrayAPT.fromByteArray(existing).merged(ArrayAPT.fromByteArray(toByteArray()), Integer.MAX_VALUE).toByteArray();
         int i = mergeIntoExisting(existing, 0, bytes, 0).b;
         frozen = true;
+        bytes = Arrays.copyOf(bytes, i);
+
         return Arrays.copyOf(bytes, i);
     }
+
+//    static byte[] expected;
+
+
+
+//    public static void checkExpected(byte[] bytes, int offset, int length) {
+//        for (int i = offset; i < offset + length; i++)
+//            if (bytes[i] != expected[i]) {
+//                byte[] ex = new byte[length];
+//                byte[] ac = new byte[length];
+//                System.arraycopy(expected, offset, ex, 0, length);
+//                System.arraycopy(bytes, offset, ac, 0, length);
+//
+//                System.out.println(Arrays.toString(ex));
+//                System.out.println(Arrays.toString(ac));
+//                throw new RuntimeException("not equals");
+//            }
+//    }
 
     private OffsetTuple mergeIntoExisting(final byte[] existing, final int existingOffset, final byte[] bytes, final int bytesOffset) {
         final int existingTokenCountSize = Util.bytes2int(existing, existingOffset);
@@ -123,6 +143,7 @@ public class AccumulativeLazyAPT implements APT {
             // I don't think it's possible for this branch to be taken, but better safe than sorry I s'pose.
             tokenCountsSize = existingTokenCountSize;
             System.arraycopy(existing, existingOffset, bytes, bytesOffset, tokenCountsSize + 12);  // + 12 for header
+//            checkExpected(bytes, bytesOffset + 12, tokenCountsSize);
         } else {
             // merge
             int outOffset = bytesOffset + 12; // skip header
@@ -159,6 +180,7 @@ public class AccumulativeLazyAPT implements APT {
                     int count = newTokenCounts[(j << 1) + 1] + Util.bytes2int(existing, i + 4);
                     Util.int2bytes(newEntityID, bytes, outOffset);
                     Util.int2bytes(count, bytes, outOffset+4);
+//                    checkExpected(bytes, outOffset, 8);
                     outOffset += 8;
                     i += 8;
                     j++;
@@ -167,11 +189,13 @@ public class AccumulativeLazyAPT implements APT {
                     int count = newTokenCounts[(j << 1) + 1];
                     Util.int2bytes(newEntityID, bytes, outOffset);
                     Util.int2bytes(count, bytes, outOffset+4);
+//                    checkExpected(bytes, outOffset, 8);
                     outOffset += 8;
                     j++;
                 } else {
                     // existing entity with no new counts, just copy the bytes
                     System.arraycopy(existing, i, bytes, outOffset, 8);
+//                    checkExpected(bytes, outOffset, 8);
                     outOffset += 8;
                     i += 8;
                 }
@@ -181,6 +205,7 @@ public class AccumulativeLazyAPT implements APT {
             if (i < existingCountsEnd) {
                 int numBytesRemaining = existingCountsEnd - i;
                 System.arraycopy(existing, i, bytes, outOffset, numBytesRemaining);
+//                checkExpected(bytes, outOffset, numBytesRemaining);
                 outOffset += numBytesRemaining;
             }
 
@@ -188,6 +213,7 @@ public class AccumulativeLazyAPT implements APT {
             while (j < numNewCounts) {
                 Util.int2bytes(newTokenCounts[j << 1], bytes, outOffset);
                 Util.int2bytes(newTokenCounts[(j << 1) + 1], bytes, outOffset + 4);
+//                checkExpected(bytes, outOffset, 8);
                 outOffset += 8;
                 j++;
             }
@@ -200,10 +226,12 @@ public class AccumulativeLazyAPT implements APT {
             System.arraycopy(existing, existingOffset + 12 + existingTokenCountSize, bytes, bytesOffset + 12 + tokenCountsSize, existingKidsSize);
             kidsSize = existingKidsSize;
             numKids = Util.bytes2int(existing, existingOffset + 8);
+//            checkExpected(bytes, bytesOffset + 12 + tokenCountsSize, existingKidsSize);
 
         } else {
             // merge
             int uniqueKids = 0;
+            int kidsFromExisting = 0;
 
             final int existingKidsEnd = existingOffset + 12 + existingTokenCountSize + existingKidsSize;
 
@@ -224,10 +252,13 @@ public class AccumulativeLazyAPT implements APT {
                 if (existingEdge == newEdge) {
                     // existing edge and new edge, so they need merging.
                     Util.int2bytes(existingEdge, bytes, outputOffset); // write out label
+//                    checkExpected(bytes, outputOffset, 4);
                     OffsetTuple t = edges.get(existingEdge).mergeIntoExisting(existing, i + 4, bytes, outputOffset + 4);
+//                    checkExpected(bytes, outputOffset, t.b - outputOffset);
                     i = t.e;
                     outputOffset = t.b;
                     j++;
+                    kidsFromExisting++;
                 } else if (existingEdge < newEdge) {
                     // calculate size of kid (including edge label) so we can just use System.arrayCopy
                     int storedKidSize = Util.bytes2int(existing, i+4) //tkncounts size
@@ -235,12 +266,17 @@ public class AccumulativeLazyAPT implements APT {
                             + 12 // header
                             + 4; // edge label
                     System.arraycopy(existing, i, bytes, outputOffset, storedKidSize); // + 4 for edge label
+//                    checkExpected(bytes, outputOffset, storedKidSize);
                     i += storedKidSize;
                     outputOffset += storedKidSize;
+                    kidsFromExisting++;
                 } else {
                     // new edge, so just write out label and then .toByteArray
                     Util.int2bytes(newEdge, bytes, outputOffset);
+//                    checkExpected(bytes, outputOffset, 4);
+//                    int x = outputOffset + 4;
                     outputOffset = edges.get(newEdge).toByteArray(bytes, outputOffset + 4);
+//                    checkExpected(bytes, x, outputOffset - x);
                     j++;
                 }
                 uniqueKids++;
@@ -249,19 +285,25 @@ public class AccumulativeLazyAPT implements APT {
             // copy over any remaining existing edges
             if (i < existingKidsEnd) {
                 int remainingBytes = existingKidsEnd - i;
-                System.arraycopy(existing, i, bytes, outputOffset, remainingBytes); // + 4 for edge label
+                System.arraycopy(existing, i, bytes, outputOffset, remainingBytes);
+//                checkExpected(bytes, outputOffset, remainingBytes);
                 outputOffset += remainingBytes;
+                uniqueKids += Util.bytes2int(existing, existingOffset + 8) - kidsFromExisting;
             }
 
             // or serialize any remaining new edges
             while (j < newEdges.length) {
                 int newEdge = newEdges[j];
                 Util.int2bytes(newEdge, bytes, outputOffset);
+//                checkExpected(bytes, outputOffset, 4);
+                int x = outputOffset + 4;
                 outputOffset = edges.get(newEdge).toByteArray(bytes, outputOffset + 4);
+//                checkExpected(bytes, x, outputOffset - x);
                 j++;
+                uniqueKids++;
             }
 
-            kidsSize = outputOffset - (tokenCountsSize + 12);
+            kidsSize = outputOffset - (tokenCountsSize + 12 + bytesOffset);
             numKids = uniqueKids;
         }
 
@@ -269,6 +311,8 @@ public class AccumulativeLazyAPT implements APT {
         Util.int2bytes(tokenCountsSize, bytes, bytesOffset);
         Util.int2bytes(kidsSize, bytes, bytesOffset + 4);
         Util.int2bytes(numKids, bytes, bytesOffset + 8);
+
+//        checkExpected(bytes, bytesOffset, 12);
 
         return new OffsetTuple(existingOffset + 12 + existingKidsSize + existingTokenCountSize, bytesOffset + 12 + tokenCountsSize + kidsSize);
     }
@@ -295,20 +339,6 @@ public class AccumulativeLazyAPT implements APT {
             }
         }
 
-    }
-
-    public static void main(String[] args) throws IOException, FrozenException {
-        AccumulativeLazyAPT apt = new AccumulativeLazyAPT();
-        AccumulativeLazyAPT apt2 = new AccumulativeLazyAPT();
-        AccumulativeLazyAPT apt3 = new AccumulativeLazyAPT();
-        apt.tokenCounts.increment(5, 10);
-        apt2.edges.put(15, apt);
-        apt3.tokenCounts.increment(7, 14);
-        byte[] bytes = apt2.toByteArray();
-        System.out.println(Arrays.toString(bytes));
-        apt.edges.put(101, apt3);
-        byte[] bytes2 = apt.mergeIntoExisting(bytes);
-        System.out.println(Arrays.toString(bytes2));
     }
 
 

@@ -12,12 +12,15 @@ import uk.ac.susx.tag.apt.store.PersistentKVStore;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.util.Map;
+import java.util.concurrent.Callable;
 import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * @author ds300
  */
 public class AccumulativeDistributionalLexicon implements DistributionalLexicon<AccumulativeLazyAPT> {
+
+    double memoryFullThreshold = 0.8;
 
     private class Store implements APTStore<AccumulativeLazyAPT> {
         boolean open = true;
@@ -30,13 +33,12 @@ public class AccumulativeDistributionalLexicon implements DistributionalLexicon<
             @Override
             public void run(){
                 while (open) {
-                    if (mem() > 0.8) {
+                    if (mem() > memoryFullThreshold) {
                         try {
                             invalidateAll();
                         } catch (IOException e) {
                             throw new RuntimeException(e);
                         }
-                        System.gc();
                     }
                     try {
                         sleep(1000);
@@ -74,18 +76,24 @@ public class AccumulativeDistributionalLexicon implements DistributionalLexicon<
                 } else {
                     backend.store(key, apt.toByteArray());
                 }
+                System.gc();
             }
         }
 
         @Override
         public AccumulativeLazyAPT get(int key) throws IOException {
-            Object m = map.get().valAt(key);
-            if (m == null) {
-                AccumulativeLazyAPT e = factory.empty();
-                put(key, e);
-                return e;
-            } else {
-                return (AccumulativeLazyAPT) m;
+            for (;;) {
+                APersistentMap m = map.get();
+                Object apt = m.valAt(key);
+                if (apt != null) {
+                    return (AccumulativeLazyAPT) apt;
+                } else {
+                    AccumulativeLazyAPT e = factory.empty();
+                    APersistentMap withNewApt = (APersistentMap) m.assoc(key, e);
+                    if (map.compareAndSet(m, withNewApt)) {
+                        return e;
+                    }
+                }
             }
         }
 
@@ -113,7 +121,7 @@ public class AccumulativeDistributionalLexicon implements DistributionalLexicon<
 
     private final PersistentKVStore<byte[], byte[]> backend;
 
-    final APTStore<AccumulativeLazyAPT> store = new Store();
+    final Store store = new Store();
 
     final APTFactory<AccumulativeLazyAPT> factory = new AccumulativeLazyAPT.Factory();
     final int depth;
@@ -136,6 +144,14 @@ public class AccumulativeDistributionalLexicon implements DistributionalLexicon<
         }
     }
 
+    public AccumulativeDistributionalLexicon setMemoryFullThreshold(double d) {
+        if (d <=0 || d >= 1) throw new IllegalArgumentException("d must be between 0 and 1 exclusive");
+
+        memoryFullThreshold = d;
+        return this;
+    }
+
+
     @Override
     public AccumulativeLazyAPT getAPT(int entityId) {
         throw new UnsupportedOperationException();
@@ -151,8 +167,20 @@ public class AccumulativeDistributionalLexicon implements DistributionalLexicon<
         throw new UnsupportedOperationException();
     }
 
+    boolean closed = false;
+
+    private void assertNotClosed() {
+        if (closed) throw new IllegalStateException("Attempting to use lexicon after close");
+    }
+
     @Override
     public void close() throws IOException {
         store.close();
+        try {
+            store.memoryWatcher.join();
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
+        closed = true;
     }
 }

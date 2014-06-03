@@ -125,3 +125,36 @@
     (doseq [x others]
       (is (= x (reserialize x))))))
 
+(defn rand-count [apt]
+  (.withCount apt (rand-int 10) (rand-int 10)))
+
+(defn times [n f v]
+  (nth (iterate f v) n))
+
+(defn new-apt []
+  (.empty factory))
+
+(defmacro choice [& forms]
+  (let [n (count forms)]
+    `(case (rand-int ~n)
+       ~@(mapcat vector (range) forms))))
+
+
+(defn rand-edge
+  ([apt other]
+   (.withEdge apt (let [n (- 5 (rand-int 10))]
+                    (if (zero? n)
+                      (choice -1 1)
+                      n)) other))
+  ([apt] (rand-edge apt (new-apt))))
+
+
+(defn rand-apt [n d]
+  (nth (iterate (fn [apt] (times d rand-edge (choice (rand-edge apt) (rand-edge (new-apt) apt))))
+                (new-apt))
+       n))
+
+(deftest rands
+  (doseq [rapt (map rand-apt (range 100) (range 100))]
+    (is (= rapt (reserialize rapt)))))
+

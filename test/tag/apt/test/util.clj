@@ -1,6 +1,6 @@
 (ns tag.apt.test.util
   (:import (uk.ac.susx.tag.apt.store APTStore$Builder APTStore PersistentKVStore)
-           (uk.ac.susx.tag.apt APTFactory Resolver Indexer APT)
+           (uk.ac.susx.tag.apt APTFactory Resolver Indexer APT Util)
            (java.util Arrays)
            (clojure.lang IFn IDeref)
            (java.io ByteArrayOutputStream ByteArrayInputStream)
@@ -96,26 +96,17 @@
       IDeref
       (deref [this] @store))))
 
-(deftype BytesKey [bytes]
-  Object
-  (hashCode [this] (Arrays/hashCode bytes))
-  (equals [this other] (Arrays/equals bytes (.bytes ^BytesKey other))))
-
-(deftest bytes-key-test
-  (let [key1 (BytesKey. (byte-array [1 2 3]))
-        key2 (BytesKey. (byte-array (mapv inc (range 3))))
-        key3 (BytesKey. (byte-array [1 2 4]))]
-    (is (= key1 key2))
-    (is (= (.hashCode key1) (.hashCode key2)))
-    (is (not= key1 key3))
-    (is (not= key2 key3))))
+(defn bytes-key [bs]
+  (into [] bs))
 
 (defn in-memory-byte-store []
   (let [store (atom {})]
-    (reify PersistentKVStore
-      (store [this k v] (swap! store assoc (BytesKey. k) v))
-      (get [this k] (@store (BytesKey. k)))
-      (contains [this k] (contains? @store (BytesKey. k)))
+    (reify
+      PersistentKVStore
+      (store [this k v]
+        (swap! store assoc (bytes-key k) v))
+      (get [this k] (@store (bytes-key k)))
+      (contains [this k] (contains? @store (bytes-key k)))
       (close [this]))))
 
 (deftest byte-store-test
