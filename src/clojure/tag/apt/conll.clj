@@ -1,5 +1,5 @@
 (ns tag.apt.conll
-  (:import (java.io StringReader BufferedReader Reader)))
+  (:import (java.io Reader)))
 
 
 (defmacro or= [val & vals]

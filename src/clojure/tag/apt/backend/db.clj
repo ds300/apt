@@ -1,6 +1,7 @@
 (ns tag.apt.backend.db
   (:import (com.sleepycat.je Environment EnvironmentConfig Database DatabaseConfig DatabaseEntry OperationStatus)
-           (uk.ac.susx.tag.apt.store PersistentKVStore))
+           (uk.ac.susx.tag.apt.store PersistentKVStore)
+           (uk.ac.susx.tag.apt Util))
   )
 
 (def ^:dynamic *env-config* (doto (EnvironmentConfig.)
@@ -16,10 +17,10 @@
     (reify
       PersistentKVStore
       (store [this k v]
-        (.put db nil (DatabaseEntry. k) (DatabaseEntry. v)))
+        (.put db nil (DatabaseEntry. (Util/int2bytes k)) (DatabaseEntry. v)))
       (get [this k]
         (let [data (DatabaseEntry.)]
-          (when (= (OperationStatus/SUCCESS) (.get db nil (DatabaseEntry. k) data nil))
+          (when (= (OperationStatus/SUCCESS) (.get db nil (DatabaseEntry. (Util/int2bytes k)) data nil))
             (.getData data))))
       (contains [this k]
         (not (nil? (.get this k))))

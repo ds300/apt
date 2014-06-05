@@ -35,9 +35,8 @@
     ;; lexicons have been closed and their contents flushed
     ;; iterate over reference lexicon and compare contents
     (doseq [[entityID apt] (ref)]
-      (let [bid (Util/int2bytes entityID)
-            from-backend (.get backend bid)
-            from-cached-backend (.get backend bid)
+      (let [from-backend (.get backend entityID)
+            from-cached-backend (.get backend entityID)
             reference (util/serialize apt)]
         (is (Arrays/equals from-backend reference))
         (is (Arrays/equals from-cached-backend reference))))))

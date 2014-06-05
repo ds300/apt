@@ -20,17 +20,17 @@
         c (.merged a b (Integer/MAX_VALUE))]
     (.put store 10 a)
     (.put store 11 b)
-    (is (nil? (.get backend (Util/int2bytes 10))))
-    (is (nil? (.get backend (Util/int2bytes 11))))
+    (is (nil? (.get backend 10)))
+    (is (nil? (.get backend 11)))
     (.put store 12 c)
-    (is (not-nil? (.get backend (Util/int2bytes 10))))
-    (is (nil? (.get backend (Util/int2bytes 11))))
+    (is (not-nil? (.get backend 10)))
+    (is (nil? (.get backend 11)))
     (is (= empty (.get store 13)))
-    (is (not-nil? (.get backend (Util/int2bytes 11))))
+    (is (not-nil? (.get backend 11)))
 
-    (is (nil? (.get backend (Util/int2bytes 12))))
+    (is (nil? (.get backend 12)))
 
     (is (= empty (.get store 14)))
-    (is (not-nil? (.get backend (Util/int2bytes 12))))
+    (is (not-nil? (.get backend 12)))
     ))
 

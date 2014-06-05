@@ -6,6 +6,7 @@
   :dependencies [[org.clojure/clojure "1.6.0"]
                  [com.google.guava/guava "16.0.1"]
                  [it.unimi.dsi/fastutil "6.5.7"]
-                 [berkeleydb/je "3.2.76"]]
+                 [com.sleepycat/je "6.0.11"]]
+  :repositories [["oracle" "http://download.oracle.com/maven"]]
   :source-paths ["src/clojure"]
   :java-source-paths ["src/java"])

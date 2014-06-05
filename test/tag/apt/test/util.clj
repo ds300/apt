@@ -96,25 +96,16 @@
       IDeref
       (deref [this] @store))))
 
-(defn bytes-key [bs]
-  (into [] bs))
 
 (defn in-memory-byte-store []
   (let [store (atom {})]
     (reify
       PersistentKVStore
       (store [this k v]
-        (swap! store assoc (bytes-key k) v))
-      (get [this k] (@store (bytes-key k)))
-      (contains [this k] (contains? @store (bytes-key k)))
+        (swap! store assoc k v))
+      (get [this k] (@store k))
+      (contains [this k] (contains? @store k))
       (close [this]))))
-
-(deftest byte-store-test
-  (let [store (in-memory-byte-store)]
-    (.store store (byte-array [1 2 3]) "hi there") ; vals are intended to be byte arrays too, but it doesn't matter for testing
-    (is (= "hi there" (.get store (byte-array (mapv inc (range 3))))))
-    (.store store (byte-array [1 2 3]) "hit here")
-    (is (= "hit here" (.get store (byte-array (mapv inc (range 3))))))))
 
 
 (defn indexer [start]

@@ -12,9 +12,9 @@
     </content>
     <orderEntry type="jdk" jdkName="1.8" jdkType="JavaSDK" />
     <orderEntry type="sourceFolder" forTests="false" />
-    <orderEntry type="library" name="Leiningen: berkeleydb/je:3.2.76" level="project" />
     <orderEntry type="library" name="Leiningen: clojure-complete:0.2.3" level="project" />
     <orderEntry type="library" name="Leiningen: com.google.guava/guava:16.0.1" level="project" />
+    <orderEntry type="library" name="Leiningen: com.sleepycat/je:6.0.11" level="project" />
     <orderEntry type="library" name="Leiningen: it.unimi.dsi/fastutil:6.5.7" level="project" />
     <orderEntry type="library" name="Leiningen: org.clojure/clojure:1.6.0" level="project" />
     <orderEntry type="library" name="Leiningen: org.clojure/tools.nrepl:0.2.3" level="project" />

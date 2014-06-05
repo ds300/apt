@@ -62,12 +62,11 @@ public class AccumulativeDistributionalLexicon implements DistributionalLexicon<
                 Map.Entry e = (Map.Entry) o;
                 int k = (int) e.getKey();
                 AccumulativeLazyAPT apt = (AccumulativeLazyAPT) e.getValue();
-                Util.int2bytes(k, key, 0);
-                byte[] existing = backend.get(key);
+                byte[] existing = backend.get(k);
                 if (existing != null) {
-                    backend.store(key, apt.mergeIntoExisting(existing));
+                    backend.store(k, apt.mergeIntoExisting(existing));
                 } else {
-                    backend.store(key, apt.toByteArray());
+                    backend.store(k, apt.toByteArray());
                 }
             }
         }
@@ -102,14 +101,14 @@ public class AccumulativeDistributionalLexicon implements DistributionalLexicon<
         }
     }
 
-    private final PersistentKVStore<byte[], byte[]> backend;
+    private final PersistentKVStore<Integer, byte[]> backend;
 
     final Store store = new Store();
 
     final APTFactory<AccumulativeLazyAPT> factory = new AccumulativeLazyAPT.Factory();
     final int depth;
 
-    public AccumulativeDistributionalLexicon(PersistentKVStore<byte[], byte[]> backend, int depth) {
+    public AccumulativeDistributionalLexicon(PersistentKVStore<Integer, byte[]> backend, int depth) {
         this.backend = backend;
         this.depth = depth;
     }

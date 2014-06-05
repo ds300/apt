@@ -17,10 +17,10 @@ import java.util.zip.GZIPOutputStream;
  */
 public class CachedAPTStore<T extends APT> implements APTStore<T> {
     private final LoadingCache<Integer, T> trees;
-    private final PersistentKVStore<byte[], byte[]> backend;
+    private final PersistentKVStore<Integer, byte[]> backend;
     private final APTFactory<T> factory;
 
-    CachedAPTStore(final int maxItems, final APTFactory<T> factory, final PersistentKVStore<byte[], byte[]> backend) {
+    CachedAPTStore(final int maxItems, final APTFactory<T> factory, final PersistentKVStore<Integer, byte[]> backend) {
         this.factory = factory;
         this.backend = backend;
         trees = CacheBuilder.newBuilder()
@@ -30,7 +30,7 @@ public class CachedAPTStore<T extends APT> implements APTStore<T> {
                     public void onRemoval(RemovalNotification<Integer, T> notification) {
 
                         try {
-                            backend.store(Util.int2bytes(notification.getKey()), notification.getValue().toByteArray());
+                            backend.store(notification.getKey(), notification.getValue().toByteArray());
                         } catch (IOException e) {
                             throw new RuntimeException(e);
                         }
@@ -39,7 +39,7 @@ public class CachedAPTStore<T extends APT> implements APTStore<T> {
                 }).build(new CacheLoader<Integer, T>() {
                     @Override
                     public T load(Integer integer) throws Exception {
-                        byte[] loaded = backend.get(Util.int2bytes(integer));
+                        byte[] loaded = backend.get(integer);
                         if (loaded != null) {
                             return factory.fromByteArray(loaded);
                         } else {
@@ -66,7 +66,7 @@ public class CachedAPTStore<T extends APT> implements APTStore<T> {
 
     @Override
     public boolean has(int key) throws IOException {
-        return trees.asMap().containsKey(key) || backend.contains(Util.int2bytes(key));
+        return trees.asMap().containsKey(key) || backend.contains(key);
     }
 
     @Override
@@ -77,7 +77,7 @@ public class CachedAPTStore<T extends APT> implements APTStore<T> {
     public static class Builder implements APTStore.Builder {
         private int maxItems = 10000;
 
-        private PersistentKVStore<byte[], byte[]> backend;
+        private PersistentKVStore<Integer, byte[]> backend;
 
         public Builder setMaxItems (int maxItems) {
             if (maxItems <= 0) {
@@ -88,7 +88,7 @@ public class CachedAPTStore<T extends APT> implements APTStore<T> {
             return this;
         }
 
-        public Builder setBackend (PersistentKVStore<byte[], byte[]> backend) {
+        public Builder setBackend (PersistentKVStore<Integer, byte[]> backend) {
             this.backend = backend;
             return this;
         }
