@@ -1,5 +1,5 @@
 (ns tag.apt.test.construct.adl
-  (:import (uk.ac.susx.tag.apt.construct AccumulativeDistributionalLexicon)
+  (:import (uk.ac.susx.tag.apt AccumulativeDistributionalLexicon)
            (uk.ac.susx.tag.apt ArrayAPT$Factory ArrayAPT RGraph APT Util)
            (java.util Arrays))
   (:require [clojure.test :refer :all]
