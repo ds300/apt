@@ -24,15 +24,50 @@
 
                       :else         (recur (.read rdr) line (.append s (char c)))))
 
-      :else       (do (.close rdr)
-                      (when-not (zero? (count acc))
-                        (cons (persistent! acc) nil))))))
+      :else (when-not (zero? (count acc))
+              (cons (persistent! acc) nil)))))
 
 (defn- fnser [fns]
   (fn [v]
     (mapv (fn [f val] (f val)) fns v)))
 
 (defn parse
+  "Parses conll-formatted data from a java.io.Reader, returning a lazy seq of sentence vectors, where each token in
+  a sentence is a vector of string values. If fns is supplied, it should be a vector of functions which are applied to
+  the corresponding token fields.
+
+  e.g. given input like
+
+```
+0       They    they    PRP     2       nsubj
+1       are     be      VBP     2       cop
+2       killers killer  NNS     -1      root
+3       .       .       .
+```
+
+  for `(parse in)` you'll get output like
+
+```
+([
+  [\"0\" \"They\" \"they\" \"PRP\" \"2\" \"nsubj\"]
+  [\"1\" \"are\" \"be\" \"VBP\" \"2\" \"cop\"]
+  [\"2\" \"killers\" \"killer\" \"NNS\" \"2\" \"root\"]
+  [\"3\" \".\" \".\" \".\"]
+])
+```
+
+  but for `(parse in [#(Integer. %) str str keyword #(Integer. %) keyword])` you'll get output like
+
+```
+([
+  [0 \"They\" \"they\" :PRP 2 :nsubj]
+  [1 \"are\" \"be\" :VBP 2 :cop]
+  [2 \"killers\" \"killer\" :NNS 2 :root]
+  [3 \".\" \".\" :.]
+])
+```
+
+  "
   ([^Reader rdr]
     (parse* rdr (transient [])))
   ([^Reader rdr fns]
