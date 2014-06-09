@@ -1,15 +1,9 @@
-package uk.ac.susx.tag.apt.store;
+package uk.ac.susx.tag.apt;
 
-import uk.ac.susx.tag.apt.APT;
 import com.google.common.cache.*;
-import uk.ac.susx.tag.apt.APTFactory;
-import uk.ac.susx.tag.apt.Util;
 
 import java.io.*;
-import java.util.Arrays;
 import java.util.concurrent.ExecutionException;
-import java.util.zip.GZIPInputStream;
-import java.util.zip.GZIPOutputStream;
 
 /**
  *
@@ -20,7 +14,7 @@ public class CachedAPTStore<T extends APT> implements APTStore<T> {
     private final PersistentKVStore<Integer, byte[]> backend;
     private final APTFactory<T> factory;
 
-    CachedAPTStore(final int maxItems, final APTFactory<T> factory, final PersistentKVStore<Integer, byte[]> backend) {
+    public CachedAPTStore(final int maxItems, final APTFactory<T> factory, final PersistentKVStore<Integer, byte[]> backend) {
         this.factory = factory;
         this.backend = backend;
         trees = CacheBuilder.newBuilder()
@@ -30,7 +24,7 @@ public class CachedAPTStore<T extends APT> implements APTStore<T> {
                     public void onRemoval(RemovalNotification<Integer, T> notification) {
 
                         try {
-                            backend.store(notification.getKey(), notification.getValue().toByteArray());
+                            backend.put(notification.getKey(), notification.getValue().toByteArray());
                         } catch (IOException e) {
                             throw new RuntimeException(e);
                         }
@@ -56,7 +50,7 @@ public class CachedAPTStore<T extends APT> implements APTStore<T> {
     }
 
     @Override
-    public T get(int key) throws IOException {
+    public T get(Integer key) throws IOException {
         try {
             return trees.get(key);
         } catch (ExecutionException e) {
@@ -65,38 +59,24 @@ public class CachedAPTStore<T extends APT> implements APTStore<T> {
     }
 
     @Override
-    public boolean has(int key) throws IOException {
-        return trees.asMap().containsKey(key) || backend.contains(key);
+    public void include(int entityID, APT apt) throws IOException {
+        trees.put(entityID, (T) get(entityID).merged(apt, Integer.MAX_VALUE));
+    }
+
+
+    @Override
+    public void remove(Integer entityID) throws IOException {
+
     }
 
     @Override
-    public void put(int key, T apt) throws IOException {
-        trees.put(key, apt);
+    public boolean containsKey(Integer entityID) throws IOException {
+        return trees.asMap().containsKey(entityID) || backend.containsKey(entityID);
     }
 
-    public static class Builder implements APTStore.Builder {
-        private int maxItems = 10000;
-
-        private PersistentKVStore<Integer, byte[]> backend;
-
-        public Builder setMaxItems (int maxItems) {
-            if (maxItems <= 0) {
-                throw new IllegalArgumentException("maxItems must be > 0");
-            } else {
-                this.maxItems = maxItems;
-            }
-            return this;
-        }
-
-        public Builder setBackend (PersistentKVStore<Integer, byte[]> backend) {
-            this.backend = backend;
-            return this;
-        }
-
-        @Override
-        public <T extends APT> APTStore<T> build(APTFactory<T> factory) {
-            if (backend == null) throw new IllegalStateException("CachedAPTStore backend not set");
-            return new CachedAPTStore<>(maxItems, factory, backend);
-        }
+    @Override
+    public void put(Integer entityID, APT apt) throws IOException {
+        trees.put(entityID, (T) factory.empty().merged(apt, Integer.MAX_VALUE));
     }
+
 }

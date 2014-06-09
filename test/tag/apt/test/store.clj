@@ -1,5 +1,5 @@
 (ns tag.apt.test.store
-  (:import (uk.ac.susx.tag.apt.store CachedAPTStore CachedAPTStore$Builder)
+  (:import (uk.ac.susx.tag.apt CachedAPTStore)
            (uk.ac.susx.tag.apt ArrayAPT$Factory ArrayAPT Util))
   (:require [clojure.test :refer :all]
             [tag.apt.test.util :refer [in-memory-byte-store]]))
@@ -10,27 +10,24 @@
 
 (deftest caching-store
   (let [backend (in-memory-byte-store)
-        store   (-> (new CachedAPTStore$Builder)
-                  (.setMaxItems 2)
-                  (.setBackend backend)
-                  (.build factory))
+        store (CachedAPTStore. 2 factory backend)
         empty (.empty factory)
         a (-> empty (.withCount 0 1) (.withCount 1 1))
         b (-> empty (.withCount 1 1) (.withCount 2 1))
         c (.merged a b (Integer/MAX_VALUE))]
-    (.put store 10 a)
-    (.put store 11 b)
+    (.put store (int 10) a)
+    (.put store (int 11) b)
     (is (nil? (.get backend 10)))
     (is (nil? (.get backend 11)))
-    (.put store 12 c)
+    (.put store (int 12) c)
     (is (not-nil? (.get backend 10)))
     (is (nil? (.get backend 11)))
-    (is (= empty (.get store 13)))
+    (is (= empty (.get store (int 13))))
     (is (not-nil? (.get backend 11)))
 
     (is (nil? (.get backend 12)))
 
-    (is (= empty (.get store 14)))
+    (is (= empty (.get store (int 14))))
     (is (not-nil? (.get backend 12)))
     ))
 

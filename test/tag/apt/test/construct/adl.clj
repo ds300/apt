@@ -1,5 +1,5 @@
 (ns tag.apt.test.construct.adl
-  (:import (uk.ac.susx.tag.apt AccumulativeDistributionalLexicon)
+  (:import (uk.ac.susx.tag.apt AccumulativeAPTStore)
            (uk.ac.susx.tag.apt ArrayAPT$Factory ArrayAPT RGraph APT Util)
            (java.util Arrays))
   (:require [clojure.test :refer :all]
@@ -24,8 +24,8 @@
   (let [backend (util/in-memory-byte-store)
         caching-backend (util/in-memory-byte-store)
         ref (reference-lexicon)]
-    (with-open [lexicon (AccumulativeDistributionalLexicon. backend (Integer/MAX_VALUE))
-                caching-lexicon (.setMemoryFullThreshold (AccumulativeDistributionalLexicon. caching-backend (Integer/MAX_VALUE)) 0.0001)]
+    (with-open [lexicon (AccumulativeAPTStore. backend (Integer/MAX_VALUE))
+                caching-lexicon (.setMemoryFullThreshold (AccumulativeAPTStore. caching-backend (Integer/MAX_VALUE)) 0.0001)]
       (doseq [^RGraph graph data/graphs]
         (let [apts (.fromGraph aapt/factory graph)]
           (doseq [[i entity-id] (map-indexed vector (.entityIds graph))]

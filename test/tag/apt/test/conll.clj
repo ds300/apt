@@ -1,8 +1,8 @@
 (ns tag.apt.test.conll
   (:import (java.io StringReader FileInputStream InputStreamReader BufferedReader)
-           (uk.ac.susx.tag.apt RGraph ArrayAPT$Factory DistributionalLexicon)
-           (uk.ac.susx.tag.apt.store CachedAPTStore CachedAPTStore$Builder)
-           (uk.ac.susx.tag.apt AccumulativeDistributionalLexicon)
+           (uk.ac.susx.tag.apt RGraph ArrayAPT$Factory APTStore)
+           (uk.ac.susx.tag.apt CachedAPTStore)
+           (uk.ac.susx.tag.apt AccumulativeAPTStore)
            (java.util.zip GZIPInputStream))
   (:require [tag.apt.conll :refer [parse]]
             [tag.apt.backend.db :as db])
@@ -94,7 +94,7 @@ nothing
   (let [tkn-index     (indexer)
         dep-index     (relation-indexer)
         backend       (util/in-memory-byte-store)]
-    (with-open [lexicon (AccumulativeDistributionalLexicon. backend 4)
+    (with-open [lexicon (AccumulativeAPTStore. backend 4)
                 in      (-> "giga-conll/nyt_cna_eng_201012conll.gz"
                             FileInputStream.
                             GZIPInputStream.
@@ -110,7 +110,7 @@ nothing
   (let [tkn-index     (indexer)
         dep-index     (relation-indexer)
         backend       (db/db-byte-store "data" "test")]
-    (with-open [lexicon (AccumulativeDistributionalLexicon. backend 4)
+    (with-open [lexicon (AccumulativeAPTStore. backend 4)
                 in      (-> "giga-conll/nyt_cna_eng_201012conll.gz"
                             FileInputStream.
                             GZIPInputStream.
