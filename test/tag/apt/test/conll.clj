@@ -1,6 +1,6 @@
 (ns tag.apt.test.conll
   (:import (java.io StringReader FileInputStream InputStreamReader BufferedReader)
-           (uk.ac.susx.tag.apt RGraph ArrayAPT$Factory APTStore)
+           (uk.ac.susx.tag.apt RGraph ArrayAPT$Factory APTStore AccumulativeAPTStore$Builder DistributionalLexicon)
            (uk.ac.susx.tag.apt CachedAPTStore)
            (uk.ac.susx.tag.apt AccumulativeAPTStore)
            (java.util.zip GZIPInputStream))
@@ -107,17 +107,18 @@ nothing
 
 
 (defn do-berkeley-test []
-  (let [tkn-index     (indexer)
-        dep-index     (relation-indexer)
-        backend       (db/db-byte-store "data" "test")]
-    (with-open [lexicon (AccumulativeAPTStore. backend 4)
+  (let [store-builder (.setMaxDepth (AccumulativeAPTStore$Builder.) 3)]
+    (with-open [lexicon ^DistributionalLexicon (db/bdb-lexicon "data" "test" store-builder)
                 in      (-> "giga-conll/nyt_cna_eng_201012conll.gz"
                             FileInputStream.
                             GZIPInputStream.
                             (InputStreamReader. "utf-8")
                             BufferedReader.)]
-      (dorun
-        (pmapall-chunked 20
-                         (fn [sent] (.include lexicon (to-graph tkn-index dep-index sent)))
-                         (parse in))))))
+      (let [tkn-index (.getEntityIndex lexicon)
+            dep-index (.getRelationIndex lexicon)]
+        (dorun
+          (pmapall-chunked 20
+                           (fn [sent] (.include lexicon (to-graph tkn-index dep-index sent)))
+                           (parse in)))))))
 
+(time (do-berkeley-test))

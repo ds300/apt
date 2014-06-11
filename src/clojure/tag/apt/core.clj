@@ -1,5 +1,5 @@
 (ns tag.apt.core
-  (:import (uk.ac.susx.tag.apt Indexer Resolver)
+  (:import (uk.ac.susx.tag.apt Indexer Resolver BidirectionalIndexer)
            (clojure.lang IPersistentMap IDeref IFn)))
 
 (defn- invert-map [m]
@@ -20,7 +20,7 @@
 (defn- relation-indexer* [^BidirectionalIndex idx]
   (let [state (atom idx)]
     (reify
-      Indexer
+      BidirectionalIndexer
       (getIndex [this s]
         (if (.startsWith s "_")
           (let [rel (.substring s 1)]
@@ -32,7 +32,6 @@
       (hasIndex [this s]
         (boolean (get (.val2idx @state) s)))
 
-      Resolver
       (resolve [this idx]
         (if (< idx 0)
           (when-let [val (get (.idx2val @state) (- idx))]
@@ -52,14 +51,14 @@
   ([] (relation-indexer* (BidirectionalIndex. 1 {} {})))
   ([val2idx]
     (let [idx2val (invert-map val2idx)]
-      (relation-indexer* (BidirectionalIndex. (inc (reduce max (Long/MIN_VALUE) (keys idx2val)))
+      (relation-indexer* (BidirectionalIndex. (inc (reduce max 0 (keys idx2val)))
                                               idx2val
                                               val2idx)))))
 
 (defn- indexer* [idx]
   (let [state (atom idx)]
     (reify
-      Indexer
+      BidirectionalIndexer
       (getIndex [this s]
         (or (get (.val2idx @state) s)
             (dec (.next (swap! state put! s)))))
@@ -67,8 +66,8 @@
       (hasIndex [this s]
         (boolean (get (.val2idx @state) s)))
 
-      Resolver
       (resolve [this idx]
+        (println @state)
         (get (.idx2val @state) idx))
 
       IDeref
@@ -91,7 +90,7 @@
          (BidirectionalIndex. init {} {})
        (map? init)
          (let [idx2val (invert-map init)]
-           (BidirectionalIndex. (inc (reduce max (Long/MIN_VALUE) (keys idx2val)))
+           (BidirectionalIndex. (inc (reduce max -1 (keys idx2val)))
                                 idx2val
                                 init))
        :else

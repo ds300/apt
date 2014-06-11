@@ -7,6 +7,5 @@ package uk.ac.susx.tag.apt;
 public interface DistributionalLexicon<EntityType, RelationType, APTType extends APT> extends APTStore<APTType> {
     BidirectionalIndexer<EntityType> getEntityIndex();
     BidirectionalIndexer<RelationType> getRelationIndex();
-
-
 }
+

@@ -1,9 +1,9 @@
 (ns tag.apt.backend.db
   (:import (com.sleepycat.je Environment EnvironmentConfig Database DatabaseConfig DatabaseEntry OperationStatus)
-           (uk.ac.susx.tag.apt PersistentKVStore)
+           (uk.ac.susx.tag.apt PersistentKVStore APTStoreBuilder DistributionalLexicon)
            (uk.ac.susx.tag.apt Util)
            (clojure.lang IDeref)
-           (java.io File))
+           (java.io File Writer))
   (:require [clojure.java.io :as io]
             [tag.apt.util :as util]
             [tag.apt.core :as core])
@@ -33,38 +33,39 @@
         (.close db)
         (.close env)))))
 
-(defprotocol HolisticStore
-  (get-backend [this])
-  (get-entity-indexer [this])
-  (get-relation-indexer [this]))
 
-(defmacro lazy [& exprs]
-  `(let [state# (atom ::unresolved)]
-     (reify IDeref
-       (deref [this#]
-         (locking this#
-           (let [val# @state#]
-             (if (identical? val# ::unresolved)
-               (reset! state# (do ~@exprs))
-               val#)))))))
+(defn get-indexer-map [file]
+  (if (.exists file)
+    (with-open [in (util/gz-reader file)]
+      (into {} (for [line (keep not-empty (line-seq in))
+                     :let [[entity idx] (.split line "\t")]]
+                 [entity (Long. idx)])))
+    {}))
 
-(defn parse-tsv-map [file]
-  (with-open [in (io/reader file)]
-    (into {} (for [line (keep not-empty (line-seq in))
-                  :let [[entity idx] (.split line "\t")]]
-               [entity (Long. idx)]))))
+(defn put-indexer-map [file map]
+  (with-open [out ^Writer (util/gz-writer file)]
+    (doseq [[k v] map]
+      (.write out (str k "\t" v "\n")))))
+
+(def entity-index-filename "entity-index.tsv.gz")
+(def relation-index-filename "relation-index.tsv.gz")
 
 
-(defn bdb-store [dir dbname]
+(defn bdb-lexicon [dir dbname ^APTStoreBuilder store-builder]
   (let [dir (io/as-file dir)
-        byte-store (lazy (db-byte-store dir dbname))
-        entity-indexer (lazy
-                         (core/indexer
-                           (let [existing-file (File. dir "entity-index.tsv.gz")]
-                             (if (.exists existing-file)
-                               (core/indexer (parse-tsv-map existing-file))
-                               (core/indexer)))))
-        relation-indexer (lazy
-                           (core/indexer
-                             (let [existing-file (File. dir "relation-index.tsv.gz")])))]
-    ()))
+        store (-> store-builder (.setBackend (db-byte-store dir dbname)) (.build))
+        entity-indexer (core/indexer (get-indexer-map (File. dir entity-index-filename)))
+        relation-indexer (core/relation-indexer (get-indexer-map (File. dir relation-index-filename)))]
+    (reify DistributionalLexicon
+      (close [this]
+        (.close store)
+        (put-indexer-map (File. dir entity-index-filename) @entity-indexer)
+        (put-indexer-map (File. dir relation-index-filename) @relation-indexer))
+      (getEntityIndex [this] entity-indexer)
+      (getRelationIndex [this] relation-indexer)
+      (containsKey [this k] (.containsKey store k))
+      (put [this k v] (.put store k v))
+      (get [this k] (.get store k))
+      (remove [this k] (.remove store k))
+      (include [this k v] (.include store k v))
+      (include [this g] (.include store g)))))

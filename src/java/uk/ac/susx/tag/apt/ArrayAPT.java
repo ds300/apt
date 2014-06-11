@@ -221,7 +221,12 @@ public class ArrayAPT implements APT {
         }
     }
 
-    private static final Resolver<Integer> INTEGER_RESOLVER = index -> index;
+    private static final Resolver<Integer> INTEGER_RESOLVER = new Resolver<Integer>() {
+        @Override
+        public Integer resolve(int index) {
+            return index;
+        }
+    };
 
     public void print() {
         print(INTEGER_RESOLVER, INTEGER_RESOLVER);
@@ -269,7 +274,7 @@ public class ArrayAPT implements APT {
 
     @Override
     public Int2ObjectSortedMap<APT> edges() {
-        return new Int2ObjectArraySortedMap<>(edges, kids);
+        return new Int2ObjectArraySortedMap<APT>(edges, kids);
     }
 
     @Override
@@ -313,37 +318,42 @@ public class ArrayAPT implements APT {
     }
 
     @Override
-    public ArrayAPT withCount(int entityId, int count) {
-        return modifyCloned(clone -> {
-            clone.sum += count;
-            int idx = Arrays.binarySearch(entities, entityId);
-            if (idx < 0) {
-                int[] newEntities = new int[entities.length + 1];
-                int[] newCounts = new int[entities.length + 1];
+    public ArrayAPT withCount(final int entityId, final int count) {
+        return modifyCloned(new CloneModifier() {
+            @Override
+            public void modify(ArrayAPT clone) {
+                clone.sum += count;
+                int idx = Arrays.binarySearch(entities, entityId);
+                if (idx < 0) {
+                    int[] newEntities = new int[entities.length + 1];
+                    int[] newCounts = new int[entities.length + 1];
 
-                int insertionPoint = -(idx + 1);
-                if (insertionPoint != 0) {
-                    System.arraycopy(entities, 0, newEntities, 0, insertionPoint);
-                    System.arraycopy(counts, 0, newCounts, 0, insertionPoint);
+                    int insertionPoint = -(idx + 1);
+                    if (insertionPoint != 0) {
+                        System.arraycopy(entities, 0, newEntities, 0, insertionPoint);
+                        System.arraycopy(counts, 0, newCounts, 0, insertionPoint);
+                    }
+                    newEntities[insertionPoint] = entityId;
+                    newCounts[insertionPoint] = count;
+                    if (insertionPoint < entities.length) {
+                        System.arraycopy(entities, insertionPoint, newEntities, insertionPoint + 1, entities.length - insertionPoint);
+                        System.arraycopy(counts, insertionPoint, newCounts, insertionPoint + 1, entities.length - insertionPoint);
+                    }
+                    clone.entities = newEntities;
+                    clone.counts = newCounts;
+                } else {
+                    clone.counts = new int[counts.length];
+                    System.arraycopy(counts, 0, clone.counts, 0, counts.length);
+                    clone.counts[idx] += count;
                 }
-                newEntities[insertionPoint] = entityId;
-                newCounts[insertionPoint] = count;
-                if (insertionPoint < entities.length) {
-                    System.arraycopy(entities, insertionPoint, newEntities, insertionPoint + 1, entities.length - insertionPoint);
-                    System.arraycopy(counts, insertionPoint, newCounts, insertionPoint + 1, entities.length - insertionPoint);
-                }
-                clone.entities = newEntities;
-                clone.counts = newCounts;
-            } else {
-                clone.counts = new int[counts.length];
-                System.arraycopy(counts, 0, clone.counts, 0, counts.length);
-                clone.counts[idx] += count;
             }
+
         });
     }
 
+
     @Override
-    public ArrayAPT withEdge(int rel, APT child) {
+    public ArrayAPT withEdge(final int rel, APT child) {
         if (rel == 0) throw new IllegalArgumentException("relation ids must not be zero");
 
         ArrayAPT kid = ensureArrayAPT(child);
@@ -352,7 +362,12 @@ public class ArrayAPT implements APT {
 
         if (aligned == null) {
             aligned = new ArrayAPT();
-            ArrayAPT cloned = kid.modifyCloned(clone -> clone.insertChild(-rel, new ArrayAPT()));
+            ArrayAPT cloned = kid.modifyCloned(new CloneModifier() {
+                @Override
+                public void modify(ArrayAPT clone) {
+                    clone.insertChild(-rel, new ArrayAPT());
+                }
+            });
             aligned.insertChild(rel, cloned);
         }
 

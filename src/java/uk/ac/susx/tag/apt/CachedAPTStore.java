@@ -63,6 +63,18 @@ public class CachedAPTStore<T extends APT> implements APTStore<T> {
         trees.put(entityID, (T) get(entityID).merged(apt, Integer.MAX_VALUE));
     }
 
+    @Override
+    public void include(RGraph rGraph) throws IOException {
+        ArrayAPT[] apts = ArrayAPT.factory.fromGraph(rGraph);
+        int[] entityIds = rGraph.entityIds;
+        for (int i=0; i<apts.length; i++) {
+            ArrayAPT apt = apts[i];
+            if (apt != null) {
+                include(entityIds[i], apt);
+            }
+        }
+    }
+
 
     @Override
     public void remove(Integer entityID) throws IOException {
