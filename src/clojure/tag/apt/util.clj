@@ -1,5 +1,5 @@
 (ns tag.apt.util
-  (:import (java.io FileInputStream FileOutputStream)
+  (:import (java.io FileInputStream FileOutputStream BufferedInputStream BufferedOutputStream)
            (java.util.zip GZIPInputStream GZIPOutputStream)
            (clojure.lang IDeref))
   (:require [clojure.java.io :as io]))
@@ -25,11 +25,19 @@
          (pmapall #(doall (map f %)) (partition-all n coll))))
 
 
-(defn gz-reader [file]
-  (-> file io/as-file (FileInputStream.) (GZIPInputStream.) io/reader))
+(defn gz-reader
+  ([file]
+    (-> file io/as-file (FileInputStream.) (GZIPInputStream.) io/reader))
+  ([file bufsz]
+    (-> file io/as-file (FileInputStream.) (BufferedInputStream. bufsz) (GZIPInputStream.) io/reader)))
 
-(defn gz-writer [file]
-  (-> file io/as-file (FileOutputStream.) (GZIPOutputStream.) io/writer))
+(defn gz-writer
+  ([file]
+    (-> file io/as-file (FileOutputStream.) (GZIPOutputStream.) io/writer))
+  ([file bufsz]
+    (-> file io/as-file (FileOutputStream.) (BufferedOutputStream. bufsz) (GZIPOutputStream.) io/writer)))
+
+
 
 
 (defmacro lazy [& body]
