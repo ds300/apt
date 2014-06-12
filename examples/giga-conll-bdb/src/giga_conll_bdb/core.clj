@@ -5,6 +5,42 @@
             [tag.apt.util :refer [gz-reader pmapall]]
             [tag.apt.conll :refer [parse]]))
 
+(def pos-map
+{  "JJ", "J"
+"JJN", "J"
+"JJS", "J"
+"JJR", "J"
+"VB", "V"
+"VBD", "V"
+"VBG", "V"
+"VBN", "V"
+"VBP", "V"
+"VBZ", "V"
+"NN", "N"
+"NNS", "N"
+"NNP", "N"
+"NPS", "N"
+"NP", "N"
+"RB", "RB"
+"RBR", "RB"
+"RBS", "RB"
+"DT", "DET"
+"WDT", "DET"
+"IN", "CONJ"
+"CC", "CONJ"
+"PRP", "PRON"
+"PRP$", "PRON"
+"WP", "PRON"
+"WP$", "PRON"
+".", "PUNCT"
+",", "PUNCT"
+":", "PUNCT"
+";", "PUNCT"
+"'", "PUNCT"
+"\"", "PUNCT"
+}
+)
+
 (def num-sents (atom 0))
 (def last-report (atom (System/currentTimeMillis)))
 (def last-n (atom 0))
@@ -28,7 +64,7 @@
         ids   (.entityIds graph)]
     (doseq [[idx word lemma pos gov dep] sent]
       (when (and gov dep)
-        (let [tkn-id (tkn-index (str word "/" pos))
+        (let [tkn-id (tkn-index (str (if (= pos "CD") "NUMBER" lemma) "/" (pos-map pos pos)))
               dep-id (dep-index dep)
               idx (Integer. idx)
               gov (Integer. gov)]
