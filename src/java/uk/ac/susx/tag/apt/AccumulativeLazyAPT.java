@@ -35,6 +35,7 @@ public class AccumulativeLazyAPT implements APT {
     Int2IntRBTreeCounter tokenCounts;
     Int2ObjectRBTreeMap<AccumulativeLazyAPT> edges;
     private boolean frozen = false;
+    private int sum = 0;
 
     public AccumulativeLazyAPT() {
         tokenCounts = new Int2IntRBTreeCounter();
@@ -42,7 +43,7 @@ public class AccumulativeLazyAPT implements APT {
     }
 
     private int size() {
-        int s = 8 + 4; // header + numkids
+        int s = 16; // header
         s += tokenCounts.size() << 3;
         s += 4 * edges.size(); // edge labels
         for (AccumulativeLazyAPT apt : edges.values()) {
@@ -59,22 +60,26 @@ public class AccumulativeLazyAPT implements APT {
     }
 
     private int toByteArray(final byte[] bytes, final int offset) {
-        // header is three integers:
+        // header is four integers:
         //  1.  number of bytes for token counts
         //  2.  number of bytes for children
         //  3.  number of children
+        //  4.  sum of entity counts (not necessarily equal to (reduce + tokenCounts.values())
 
         Util.int2bytes(tokenCounts.size() << 3, bytes, offset); // 1
         // 2 calculated later
         Util.int2bytes(edges.size(), bytes, offset + 8); // 3
+        Util.int2bytes(sum, bytes, offset + 12);
 
         // then serialize token counts
-        int i = offset + 12;
+        int i = offset + 16;
         for (Int2IntMap.Entry entry : tokenCounts.int2IntEntrySet()) {
             Util.int2bytes(entry.getIntKey(), bytes, i);
             Util.int2bytes(entry.getIntValue(), bytes, i+4);
             i+=8;
         }
+
+
 
         // now serialize children
         int j = i;
@@ -131,6 +136,7 @@ public class AccumulativeLazyAPT implements APT {
     private OffsetTuple mergeIntoExisting(final byte[] existing, final int existingOffset, final byte[] bytes, final int bytesOffset) {
         final int existingTokenCountSize = Util.bytes2int(existing, existingOffset);
         final int existingKidsSize = Util.bytes2int(existing, existingOffset + 4);
+        final int existingSum = Util.bytes2int(existing, existingOffset + 12);
         // mutable variants of offset pointers
 
         // declare header numbers here and serialize them at the end.
@@ -141,15 +147,15 @@ public class AccumulativeLazyAPT implements APT {
         if (tokenCounts.size() == 0) {
             // I don't think it's possible for this branch to be taken, but better safe than sorry I s'pose.
             tokenCountsSize = existingTokenCountSize;
-            System.arraycopy(existing, existingOffset, bytes, bytesOffset, tokenCountsSize + 12);  // + 12 for header
+            System.arraycopy(existing, existingOffset, bytes, bytesOffset, tokenCountsSize + 16);  // + 16 for header
 //            checkExpected(bytes, bytesOffset + 12, tokenCountsSize);
         } else {
             // merge
-            int outOffset = bytesOffset + 12; // skip header
+            int outOffset = bytesOffset + 16; // skip header
 
             final int numNewCounts = tokenCounts.size();
 
-            final int existingCountsStart = existingOffset + 12;
+            final int existingCountsStart = existingOffset + 16;
             final int existingCountsEnd = existingCountsStart + existingTokenCountSize;
 
 
@@ -217,12 +223,12 @@ public class AccumulativeLazyAPT implements APT {
                 j++;
             }
 
-            tokenCountsSize = outOffset - (bytesOffset + 12);
+            tokenCountsSize = outOffset - (bytesOffset + 16);
         }
 
         if (edges.size() == 0) {
             // just copy the kids over.
-            System.arraycopy(existing, existingOffset + 12 + existingTokenCountSize, bytes, bytesOffset + 12 + tokenCountsSize, existingKidsSize);
+            System.arraycopy(existing, existingOffset + 16 + existingTokenCountSize, bytes, bytesOffset + 16 + tokenCountsSize, existingKidsSize);
             kidsSize = existingKidsSize;
             numKids = Util.bytes2int(existing, existingOffset + 8);
 //            checkExpected(bytes, bytesOffset + 12 + tokenCountsSize, existingKidsSize);
@@ -232,16 +238,16 @@ public class AccumulativeLazyAPT implements APT {
             int uniqueKids = 0;
             int kidsFromExisting = 0;
 
-            final int existingKidsEnd = existingOffset + 12 + existingTokenCountSize + existingKidsSize;
+            final int existingKidsEnd = existingOffset + 16 + existingTokenCountSize + existingKidsSize;
 
             final int[] newEdges = edges.keySet().toIntArray(); // sorted.
 
             // i iterates over bytes in existing
-            int i = existingOffset + 12 + existingTokenCountSize;
+            int i = existingOffset + 16 + existingTokenCountSize;
             // j iterates over newEdges
             int j = 0;
 
-            int outputOffset = bytesOffset + 12 + tokenCountsSize;
+            int outputOffset = bytesOffset + 16 + tokenCountsSize;
 
             // iterate over arrays in parallel merge-sort style
             while (i < existingKidsEnd && j < newEdges.length) {
@@ -262,7 +268,7 @@ public class AccumulativeLazyAPT implements APT {
                     // calculate size of kid (including edge label) so we can just use System.arrayCopy
                     int storedKidSize = Util.bytes2int(existing, i+4) //tkncounts size
                             + Util.bytes2int(existing, i+8) // kids size
-                            + 12 // header
+                            + 16 // header
                             + 4; // edge label
                     System.arraycopy(existing, i, bytes, outputOffset, storedKidSize); // + 4 for edge label
 //                    checkExpected(bytes, outputOffset, storedKidSize);
@@ -295,14 +301,14 @@ public class AccumulativeLazyAPT implements APT {
                 int newEdge = newEdges[j];
                 Util.int2bytes(newEdge, bytes, outputOffset);
 //                checkExpected(bytes, outputOffset, 4);
-                int x = outputOffset + 4;
+//                int x = outputOffset + 4;
                 outputOffset = edges.get(newEdge).toByteArray(bytes, outputOffset + 4);
 //                checkExpected(bytes, x, outputOffset - x);
                 j++;
                 uniqueKids++;
             }
 
-            kidsSize = outputOffset - (tokenCountsSize + 12 + bytesOffset);
+            kidsSize = outputOffset - (tokenCountsSize + 16 + bytesOffset);
             numKids = uniqueKids;
         }
 
@@ -310,19 +316,24 @@ public class AccumulativeLazyAPT implements APT {
         Util.int2bytes(tokenCountsSize, bytes, bytesOffset);
         Util.int2bytes(kidsSize, bytes, bytesOffset + 4);
         Util.int2bytes(numKids, bytes, bytesOffset + 8);
+        Util.int2bytes(existingSum + sum, bytes, bytesOffset + 12);
 
 //        checkExpected(bytes, bytesOffset, 12);
 
-        return new OffsetTuple(existingOffset + 12 + existingKidsSize + existingTokenCountSize, bytesOffset + 12 + tokenCountsSize + kidsSize);
+        return new OffsetTuple(existingOffset + 16 + existingKidsSize + existingTokenCountSize, bytesOffset + 16 + tokenCountsSize + kidsSize);
     }
 
     synchronized void merge (APT other, int depth, int returnPath) throws FrozenException {
 
         if (frozen) throw new FrozenException();
 
+
         if (other instanceof ArrayAPT) {
             mergeArrayAPT((ArrayAPT) other, depth, returnPath);
         } else {
+
+            sum += other.sum();
+
             for (Int2IntMap.Entry e : other.entityCounts().int2IntEntrySet()) {
                 tokenCounts.increment(e.getIntKey(), e.getIntValue());
             }
@@ -344,6 +355,7 @@ public class AccumulativeLazyAPT implements APT {
     }
 
     private void mergeArrayAPT(ArrayAPT other, int depth, int returnPath) {
+        sum += other.sum();
         int[] entities = other.entities;
         int[] counts = other.counts;
         for (int i=0; i < entities.length; i++)

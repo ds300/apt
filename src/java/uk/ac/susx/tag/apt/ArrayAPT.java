@@ -44,6 +44,7 @@ public class ArrayAPT implements APT {
             RGraph.Relation[] relations = graph.relations;
             for (int i=0; i<numRelations; i++) {
                 RGraph.Relation r = relations[i];
+                int depid = graph.entityIds[r.dependent];
 
                 if (r.governor >= 0) {
                     ArrayAPT parent = result[r.governor];
@@ -70,14 +71,20 @@ public class ArrayAPT implements APT {
 
                     child.insertChild(-r.type, parent);
 
-                    child.insertTokenCount(graph.entityIds[r.dependent], 1);
+                    if (depid != -1)
+                        child.insertTokenCount(graph.entityIds[r.dependent], 1);
+                    else
+                        child.sum += 1;
 
                     result[r.dependent] = child;
 
                 } else {
                     if (result[r.dependent] == null)
                         result[r.dependent] = new ArrayAPT();
-                    result[r.dependent].insertTokenCount(graph.entityIds[r.dependent], 1);
+                    if (depid != -1)
+                        result[r.dependent].insertTokenCount(graph.entityIds[r.dependent], 1);
+                    else
+                        result[r.dependent].sum += 1;
                 }
             }
 
@@ -501,7 +508,7 @@ public class ArrayAPT implements APT {
     }
 
     private int toByteArray(final byte[] bytes, final int offset, final int returnPath) {
-        int outputOffset = offset + 12;
+        int outputOffset = offset + 16;
         for (int i=0; i<entities.length;i++) {
             Util.int2bytes(entities[i], bytes, outputOffset);
             Util.int2bytes(counts[i], bytes, outputOffset+4);
@@ -526,6 +533,7 @@ public class ArrayAPT implements APT {
         Util.int2bytes(entities.length << 3, bytes, offset);
         Util.int2bytes(kidsLength, bytes, offset + 4);
         Util.int2bytes(numKids, bytes, offset + 8);
+        Util.int2bytes(sum, bytes, offset + 12);
 
         return outputOffset;
     }
@@ -549,25 +557,23 @@ public class ArrayAPT implements APT {
 
         final int numEntitites = Util.bytes2int(bytes, offset) >>> 3;
         final int numKids = Util.bytes2int(bytes, offset + 8) + (parent == null ? 0 : 1);
+        result.sum = Util.bytes2int(bytes, offset + 12);
 
-        offset += 12;
+        offset += 16;
 
         if (numEntitites > 0) {
             int[] entities = new int[numEntitites];
             int[] counts = new int[numEntitites];
 
-            int sum = 0;
 
             for (int i=0; i < numEntitites; i++) {
                 entities[i] = Util.bytes2int(bytes, offset);
                 counts[i] = Util.bytes2int(bytes, offset + 4);
-                sum += counts[i];
                 offset += 8;
             }
 
             result.entities = entities;
             result.counts = counts;
-            result.sum = sum;
         }
 
         if (numKids > 0) {
@@ -605,7 +611,7 @@ public class ArrayAPT implements APT {
 
 
     private int size(int returnPath) {
-        int s = 12 + (entities.length << 3);
+        int s = 16 + (entities.length << 3);
 
         for (int i=0;i<edges.length;i++) {
             int edge = edges[i];
