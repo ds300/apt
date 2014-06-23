@@ -121,4 +121,5 @@ nothing
                            (fn [sent] (.include lexicon (to-graph tkn-index dep-index sent)))
                            (parse in)))))))
 
-(time (do-berkeley-test))
+;(time (do-berkeley-test))
+;(time (do-integration-test))
