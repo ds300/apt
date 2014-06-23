@@ -41,6 +41,7 @@ public class AccumulativeAPTStore implements APTStore<AccumulativeLazyAPT> {
                     try {
                         System.out.println("Memory limit reached at " + ((rt.totalMemory() - rt.freeMemory()) / (1024 * 1024)) + "mb");
                         clearCache();
+                        System.gc();
                     } catch (IOException e) {
                         throw new RuntimeException(e);
                     }
