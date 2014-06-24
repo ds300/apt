@@ -1,5 +1,5 @@
 (ns tag.apt.test.array-apt
-  (:import (uk.ac.susx.tag.apt ArrayAPT APTFactory APT)
+  (:import (uk.ac.susx.tag.apt ArrayAPT APTFactory APT RGraph)
            (java.io ByteArrayOutputStream ByteArrayInputStream))
   (:require [tag.apt.test.data :as data]
             [tag.apt.test.util :as util]
@@ -157,4 +157,27 @@
 (deftest rands
   (doseq [rapt (map rand-apt (range 100) (range 100))]
     (is (= rapt (reserialize rapt)))))
+
+
+(defmacro doseqi [idx-sym [val-sym seq-expr] & body]
+  `(loop [~idx-sym 0 s# ~seq-expr]
+     (when (seq s#)
+       (let [~val-sym (first s#)]
+         ~@body)
+       (recur (inc ~idx-sym) (rest s#)))))
+
+(deftest anonymous-entities
+  (let [ids [0 1 2 -1 4]
+        g (doto (RGraph. (int-array ids))
+            (.addRelation 1 0 1)
+            (.addRelation 2 1 1)
+            (.addRelation 3 2 1)
+            (.addRelation 4 3 1))
+
+        apts (into [] (.fromGraph factory g))]
+    (doseqi i [apt apts]
+      (is (= 1 (.sum apt)))
+      (if (= (ids i) -1)
+        (is (= 0 (.getCount apt (ids i))))
+        (is (= 1 (.getCount apt (ids i))))))))
 

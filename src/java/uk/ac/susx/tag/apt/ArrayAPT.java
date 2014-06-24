@@ -44,7 +44,7 @@ public class ArrayAPT implements APT {
             RGraph.Relation[] relations = graph.relations;
             for (int i=0; i<numRelations; i++) {
                 RGraph.Relation r = relations[i];
-                int depid = graph.entityIds[r.dependent];
+//                int depid = graph.entityIds[r.dependent];
 
                 if (r.governor >= 0) {
                     ArrayAPT parent = result[r.governor];
@@ -71,20 +71,32 @@ public class ArrayAPT implements APT {
 
                     child.insertChild(-r.type, parent);
 
-                    if (depid != -1)
-                        child.insertTokenCount(graph.entityIds[r.dependent], 1);
-                    else
-                        child.sum += 1;
+//                    if (depid != -1)
+//                        child.insertTokenCount(graph.entityIds[r.dependent], 1);
+//                    else
+//                        child.sum += 1;
 
                     result[r.dependent] = child;
 
                 } else {
                     if (result[r.dependent] == null)
                         result[r.dependent] = new ArrayAPT();
-                    if (depid != -1)
-                        result[r.dependent].insertTokenCount(graph.entityIds[r.dependent], 1);
-                    else
-                        result[r.dependent].sum += 1;
+//                    if (depid != -1)
+//                        result[r.dependent].insertTokenCount(graph.entityIds[r.dependent], 1);
+//                    else
+//                        result[r.dependent].sum += 1;
+                }
+            }
+
+            for (int i = 0; i < graph.entityIds.length; i++) {
+                int eid = graph.entityIds[i];
+                ArrayAPT node = result[i];
+                if (node != null) {
+                    if (eid != -1) {
+                        node.insertTokenCount(eid, 1);
+                    } else {
+                        node.sum += 1;
+                    }
                 }
             }
 
