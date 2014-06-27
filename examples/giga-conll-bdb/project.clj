@@ -4,7 +4,7 @@
   :license {:name "Eclipse Public License"
             :url "http://www.eclipse.org/legal/epl-v10.html"}
   :dependencies [[org.clojure/clojure "1.6.0"]
-                 [uk.ac.susx.tag/apt "0.2.0-SNAPSHOT"]]
+                 [uk.ac.susx.tag/apt "0.4.0-SNAPSHOT"]]
   :javac-options ["-target" "1.7" "-source" "1.7" "-Xlint:-options"]
   :main ^:skip-aot giga-conll-bdb.core
   :target-path "target/%s"

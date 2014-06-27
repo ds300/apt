@@ -5,7 +5,10 @@
   (:require [tag.apt.backend.db :refer [bdb-lexicon *env-config*]]
             [tag.apt.util :refer [gz-reader pmapall]]
             [tag.apt.conll :refer [parse]]
+            [clojure.java.io :as io]
             [clojure.pprint :refer [pprint]]))
+
+(def ^:dynamic *dictionary* {})
 
 (def pos-map
 {  "JJ", "J"
@@ -67,7 +70,9 @@
         ids   (.entityIds graph)]
     (doseq [[idx word lemma pos gov dep] sent]
       (when (and gov dep)
-        (let [tkn-id (tkn-index (str (if (= pos "CD") "NUMBER" (.toLowerCase ^String lemma)) "/" (pos-map pos pos)))
+        (let [tkn-id (if-let [lemma (*dictionary* (.toLowerCase lemma))]
+                       (tkn-index (str lemma "/" (pos-map pos pos)))
+                       -1)
               dep-id (dep-index dep)
               idx (Integer. idx)
               gov (Integer. gov)]
@@ -96,6 +101,9 @@
             (println "Failed to build graph for:")
             (pprint sent)))))))
 
+(defn load-dictionary! []
+  (with-open [in (io/reader (io/resource "aspell-english"))]
+    (into #{} (line-seq in))))
 
 (defn -main
   "I don't do a whole lot ... yet."
@@ -103,7 +111,8 @@
   (let [store-builder (.setMaxDepth (AccumulativeAPTStore$Builder.) (Integer. depth))]
     (binding [*env-config* (doto (EnvironmentConfig.)
                                 (.setAllowCreate true)
-                                (.setLocking false))]
+                                (.setLocking false))
+              *dictionary* (load-dictionary!)]
     (with-open [lexicon (bdb-lexicon home dbname store-builder)]
       (dorun (pmapall (partial process-file! lexicon) (map clojure.java.io/as-file input-files)))
       (shutdown-agents)
