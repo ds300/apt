@@ -1,4 +1,4 @@
-(defproject uk.ac.susx.tag/apt "0.2.0-SNAPSHOT"
+(defproject uk.ac.susx.tag/apt "0.4.0-SNAPSHOT"
   :description "Utilities for dealing with Anchored Packed Trees"
   :url "http://susx.ac.uk/"
   :license {:name "Apache License Version 2.0"
