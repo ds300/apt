@@ -2,9 +2,16 @@ package uk.ac.susx.tag.apt;
 
 import clojure.lang.APersistentMap;
 import clojure.lang.PersistentHashMap;
+import com.google.common.cache.CacheBuilder;
+import com.google.common.cache.LoadingCache;
+import com.google.common.cache.RemovalListener;
+import com.google.common.cache.RemovalNotification;
 
 import java.io.IOException;
 import java.util.Map;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 
 /**
  * @author ds300
@@ -65,9 +72,33 @@ public class AccumulativeAPTStore implements APTStore<AccumulativeLazyAPT> {
     }
 
 
+    private class PutTask implements Runnable {
+        final int k;
+        final AccumulativeLazyAPT apt;
+
+        private PutTask(int k, AccumulativeLazyAPT apt) {
+            this.k = k;
+            this.apt = apt;
+        }
+
+        @Override
+        public void run() {
+            try {
+                byte[] existing = backend.get(k);
+                if (existing != null) {
+                    backend.put(k, apt.mergeIntoExisting(existing));
+                } else {
+                    backend.put(k, apt.toByteArray());
+                }
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+        }
+    }
 
     private synchronized void clearCache() throws IOException {
         System.out.println("clearing cache...");
+        ExecutorService pool = Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors() + 2);
         APersistentMap m = cache;
         cache = PersistentHashMap.EMPTY;
 
@@ -75,12 +106,14 @@ public class AccumulativeAPTStore implements APTStore<AccumulativeLazyAPT> {
             Map.Entry e = (Map.Entry) o;
             int k = (int) e.getKey();
             AccumulativeLazyAPT apt = (AccumulativeLazyAPT) e.getValue();
-            byte[] existing = backend.get(k);
-            if (existing != null) {
-                backend.put(k, apt.mergeIntoExisting(existing));
-            } else {
-                backend.put(k, apt.toByteArray());
-            }
+            pool.submit(new PutTask(k, apt));
+        }
+        m = null;
+        pool.shutdown();
+        try {
+            pool.awaitTermination(1, TimeUnit.DAYS);
+        } catch (InterruptedException e) {
+            throw new IOException(e);
         }
     }
 
@@ -130,8 +163,9 @@ public class AccumulativeAPTStore implements APTStore<AccumulativeLazyAPT> {
         ArrayAPT[] apts = aaptFactory.fromGraph(graph);
         for (int i=0; i<apts.length; i++) {
             ArrayAPT apt = apts[i];
-            if (apt != null) {
-                include(graph.entityIds[i], apt);
+            int eid = graph.entityIds[i];
+            if (apt != null && eid != -1) {
+                include(eid, apt);
             }
         }
     }

@@ -2,7 +2,7 @@ package uk.ac.susx.tag.apt;
 
 import it.unimi.dsi.fastutil.ints.*;
 
-import java.io.*;
+import java.io.IOException;
 import java.util.Arrays;
 
 /**
