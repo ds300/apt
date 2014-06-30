@@ -3,7 +3,8 @@
            (uk.ac.susx.tag.apt PersistentKVStore APTStoreBuilder DistributionalLexicon)
            (uk.ac.susx.tag.apt Util)
            (clojure.lang IDeref)
-           (java.io File Writer))
+           (java.io File Writer ByteArrayOutputStream ByteArrayInputStream)
+           (java.util.zip GZIPOutputStream GZIPInputStream))
   (:require [clojure.java.io :as io]
             [tag.apt.util :as util]
             [tag.apt.core :as core])
@@ -15,23 +16,57 @@
 (def ^:dynamic *db-config* (doto (DatabaseConfig.)
                                (.setAllowCreate true)))
 
+(def ^:dynamic *use-compression* false)
+
+
+(defn compress [^bytes bytes]
+  (let [out (ByteArrayOutputStream. (.length bytes))]
+    (doto (GZIPOutputStream. out)
+      (.write bytes)
+      (.flush)
+      (.close))
+    (.toByteArray out)))
+
+(defn decompress [^bytes bytes]
+  (let [in (GZIPInputStream. (ByteArrayInputStream. bytes))
+        out (ByteArrayOutputStream.)
+        buf (byte-array 1024)]
+    (loop [numBytes (.read in buf)]
+      (when (> numBytes -1)
+        (.write out buf 0 numBytes)
+        (recur (.read in buf))))
+    (.toByteArray out)))
 
 (defn db-byte-store [dir dbname]
   (let [env (Environment. (io/as-file dir) *env-config*)
         db (.openDatabase env nil dbname *db-config*)]
-    (reify
-      PersistentKVStore
-      (put [this k v]
-        (.put db nil (DatabaseEntry. (Util/int2bytes k)) (DatabaseEntry. v)))
-      (get [this k]
-        (let [data (DatabaseEntry.)]
-          (when (= (OperationStatus/SUCCESS) (.get db nil (DatabaseEntry. (Util/int2bytes k)) data nil))
-            (.getData data))))
-      (containsKey [this k]
-        (not (nil? (.get this k))))
-      (close [this]
-        (.close db)
-        (.close env)))))
+    (if *use-compression*
+      (reify
+        PersistentKVStore
+        (put [this k v]
+          (.put db nil (DatabaseEntry. (Util/int2bytes k)) (DatabaseEntry. (compress v))))
+        (get [this k]
+          (let [data (DatabaseEntry.)]
+            (when (= (OperationStatus/SUCCESS) (.get db nil (DatabaseEntry. (Util/int2bytes k)) data nil))
+              (decompress (.getData data)))))
+        (containsKey [this k]
+          (not (nil? (.get this k))))
+        (close [this]
+          (.close db)
+          (.close env)))
+      (reify
+        PersistentKVStore
+        (put [this k v]
+          (.put db nil (DatabaseEntry. (Util/int2bytes k)) (DatabaseEntry. v)))
+        (get [this k]
+          (let [data (DatabaseEntry.)]
+            (when (= (OperationStatus/SUCCESS) (.get db nil (DatabaseEntry. (Util/int2bytes k)) data nil))
+              (.getData data))))
+        (containsKey [this k]
+          (not (nil? (.get this k))))
+        (close [this]
+          (.close db)
+          (.close env))))))
 
 
 (defn get-indexer-map [file]
