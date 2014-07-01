@@ -2,7 +2,7 @@
   (:gen-class)
   (:import [uk.ac.susx.tag.apt AccumulativeAPTStore$Builder RGraph]
            [com.sleepycat.je EnvironmentConfig])
-  (:require [tag.apt.backend.db :refer [bdb-lexicon *env-config*]]
+  (:require [tag.apt.backend.db :refer [bdb-lexicon *env-config* *use-compression*]]
             [tag.apt.util :refer [gz-reader pmapall]]
             [tag.apt.conll :refer [parse]]
             [clojure.java.io :as io]
@@ -112,7 +112,8 @@
     (binding [*env-config* (doto (EnvironmentConfig.)
                                 (.setAllowCreate true)
                                 (.setLocking false))
-              *dictionary* (load-dictionary!)]
+              *dictionary* (load-dictionary!)
+              *use-compression* true]
     (with-open [lexicon (bdb-lexicon home dbname store-builder)]
       (dorun (pmapall (partial process-file! lexicon) (map clojure.java.io/as-file input-files)))
       (shutdown-agents)

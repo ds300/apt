@@ -119,7 +119,8 @@ nothing
         (dorun
           (pmapall-chunked 20
                            (fn [sent] (.include lexicon (to-graph tkn-index dep-index sent)))
-                           (parse in)))))))
+                           (parse in))))
+      lexicon)))
 
-;(time (do-berkeley-test))
+(def lex (binding [db/*use-compression* true] (time (do-berkeley-test))))
 ;(time (do-integration-test))

@@ -11,3 +11,4 @@ pom.xml.asc
 *.idm
 /giga-conll
 /data
+*.iml

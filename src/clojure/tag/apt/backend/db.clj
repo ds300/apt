@@ -20,7 +20,7 @@
 
 
 (defn compress [^bytes bytes]
-  (let [out (ByteArrayOutputStream. (.length bytes))]
+  (let [out (ByteArrayOutputStream. (alength bytes))]
     (doto (GZIPOutputStream. out)
       (.write bytes)
       (.flush)
