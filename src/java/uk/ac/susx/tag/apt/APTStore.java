@@ -16,6 +16,5 @@ public interface APTStore<T extends APT> extends PersistentKVStore<Integer, T> {
     void include(int entityID, APT apt) throws IOException;
 
 
-    void include(RGraph rGraph) throws IOException;
 
 }

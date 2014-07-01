@@ -1,5 +1,5 @@
 (ns tag.apt.test.store
-  (:import (uk.ac.susx.tag.apt CachedAPTStore)
+  (:import (uk.ac.susx.tag.apt LRUCachedAPTStore)
            (uk.ac.susx.tag.apt ArrayAPT$Factory ArrayAPT Util))
   (:require [clojure.test :refer :all]
             [tag.apt.test.util :refer [in-memory-byte-store]]))
@@ -10,7 +10,7 @@
 
 (deftest caching-store
   (let [backend (in-memory-byte-store)
-        store (CachedAPTStore. 2 factory backend)
+        store (LRUCachedAPTStore. 2 factory backend)
         empty (.empty factory)
         a (-> empty (.withCount 0 1) (.withCount 1 1))
         b (-> empty (.withCount 1 1) (.withCount 2 1))

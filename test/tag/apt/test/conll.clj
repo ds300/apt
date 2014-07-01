@@ -1,7 +1,7 @@
 (ns tag.apt.test.conll
   (:import (java.io StringReader FileInputStream InputStreamReader BufferedReader)
            (uk.ac.susx.tag.apt RGraph ArrayAPT$Factory APTStore AccumulativeAPTStore$Builder DistributionalLexicon)
-           (uk.ac.susx.tag.apt CachedAPTStore)
+           (uk.ac.susx.tag.apt LRUCachedAPTStore)
            (uk.ac.susx.tag.apt AccumulativeAPTStore)
            (java.util.zip GZIPInputStream))
   (:require [tag.apt.conll :refer [parse]]

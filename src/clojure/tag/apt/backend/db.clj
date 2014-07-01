@@ -1,6 +1,6 @@
 (ns tag.apt.backend.db
   (:import (com.sleepycat.je Environment EnvironmentConfig Database DatabaseConfig DatabaseEntry OperationStatus)
-           (uk.ac.susx.tag.apt PersistentKVStore APTStoreBuilder DistributionalLexicon)
+           (uk.ac.susx.tag.apt PersistentKVStore APTStoreBuilder DistributionalLexicon ArrayAPT ArrayAPT$Factory RGraph)
            (uk.ac.susx.tag.apt Util)
            (clojure.lang IDeref)
            (java.io File Writer ByteArrayOutputStream ByteArrayInputStream)
@@ -84,23 +84,43 @@
 
 (def entity-index-filename "entity-index.tsv.gz")
 (def relation-index-filename "relation-index.tsv.gz")
+(def sum-filename "sum.int")
 
+(defn get-sum [file]
+  (if (.exists file)
+    (Long. (slurp file))
+    0))
+
+(defn put-sum [file sum]
+  (spit file (str sum)))
+
+(def aapt-factory (ArrayAPT$Factory.))
 
 (defn bdb-lexicon [dir dbname ^APTStoreBuilder store-builder]
   (let [dir (io/as-file dir)
         store (-> store-builder (.setBackend (db-byte-store dir dbname)) (.build))
         entity-indexer (core/indexer (get-indexer-map (File. dir entity-index-filename)))
-        relation-indexer (core/relation-indexer (get-indexer-map (File. dir relation-index-filename)))]
+        relation-indexer (core/relation-indexer (get-indexer-map (File. dir relation-index-filename)))
+        sum (atom (get-sum (File. dir sum-filename)))]
     (reify DistributionalLexicon
       (close [this]
         (.close store)
+        (put-sum (File. dir sum-filename) @sum)
         (put-indexer-map (File. dir entity-index-filename) @entity-indexer)
         (put-indexer-map (File. dir relation-index-filename) @relation-indexer))
       (getEntityIndex [this] entity-indexer)
       (getRelationIndex [this] relation-indexer)
+      (getSum [this] @sum)
       (containsKey [this k] (.containsKey store k))
       (put [this k v] (.put store k v))
       (get [this k] (.get store k))
       (remove [this k] (.remove store k))
-      (include [this k v] (.include store k v))
-      (include [this g] (.include store g)))))
+      (include [this k v]
+        (.include store k v)
+        (swap! sum inc))
+      (include [this ^RGraph g]
+        (let [apts (.fromGraph aapt-factory g)
+              ids (.entityIds g)]
+          (dotimes [n (alength apts)]
+            (.include store (aget ids n) (aget apts n))
+            (swap! sum inc)))))))

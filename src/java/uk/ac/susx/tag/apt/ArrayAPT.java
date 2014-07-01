@@ -2,11 +2,14 @@ package uk.ac.susx.tag.apt;
 
 
 
-import it.unimi.dsi.fastutil.ints.Int2IntSortedMap;
-import it.unimi.dsi.fastutil.ints.Int2ObjectSortedMap;
+import it.unimi.dsi.fastutil.ints.*;
 
 import java.io.*;
 import java.util.Arrays;
+import java.util.HashMap;
+import java.util.Map;
+
+import uk.ac.susx.mlcl.lib.collect.SparseDoubleVector;
 
 /**
  * @author ds300
@@ -42,11 +45,14 @@ public class ArrayAPT implements APT {
 
             final int numRelations = graph.numRelations;
             RGraph.Relation[] relations = graph.relations;
+
+            // first iterate over relations and make sure that the tree structure is fully reified
             for (int i=0; i<numRelations; i++) {
                 RGraph.Relation r = relations[i];
-//                int depid = graph.entityIds[r.dependent];
 
+                // if governor < 0 it is taken to point to the root node
                 if (r.governor >= 0) {
+                    // this relation is between two real nodes, so find/make them
                     ArrayAPT parent = result[r.governor];
                     ArrayAPT child;
 
@@ -62,32 +68,25 @@ public class ArrayAPT implements APT {
 
                         if (child == null) {
                             child = new ArrayAPT();
-                            result[r.dependent] = child;
                         }
 
                         parent.insertChild(r.type, child);
                     }
 
+                    // now add inverse relation from child to parent
 
                     child.insertChild(-r.type, parent);
-
-//                    if (depid != -1)
-//                        child.insertTokenCount(graph.entityIds[r.dependent], 1);
-//                    else
-//                        child.sum += 1;
 
                     result[r.dependent] = child;
 
                 } else {
+                    // relation governer is root, so just make a new node for the dependent if need be
                     if (result[r.dependent] == null)
                         result[r.dependent] = new ArrayAPT();
-//                    if (depid != -1)
-//                        result[r.dependent].insertTokenCount(graph.entityIds[r.dependent], 1);
-//                    else
-//                        result[r.dependent].sum += 1;
                 }
             }
 
+            // now iterate over entity ids and, where appropriate, increment the count at their nodes
             for (int i = 0; i < graph.entityIds.length; i++) {
                 int eid = graph.entityIds[i];
                 ArrayAPT node = result[i];
@@ -95,6 +94,8 @@ public class ArrayAPT implements APT {
                     if (eid != -1) {
                         node.insertTokenCount(eid, 1);
                     } else {
+                        // -1 is a pseudo entityID which means "This should contribute towards the probability mass, but
+                        // don't bother actually storing the count."
                         node.sum += 1;
                     }
                 }
@@ -308,7 +309,7 @@ public class ArrayAPT implements APT {
         return res;
     }
 
-    private void walk(APTVisitor visitor, int[] path, int returnEdge) {
+    private void walk(APTVisitor<ArrayAPT> visitor, int[] path, int returnEdge) {
         visitor.visit(path, this);
         for (int i=0;i<edges.length;i++) {
             int edge = edges[i];
@@ -666,6 +667,47 @@ public class ArrayAPT implements APT {
             return this.equals(ensureArrayAPT((APT)obj), 0);
         }
     }
+
+
+    public Map<int[], Integer> extractFeatures () {
+        final Map<int[], Integer> result = new HashMap<>();
+        walk(new APTVisitor<ArrayAPT>() {
+            @Override
+            public void visit(int[] path, ArrayAPT apt) {
+                final int[] es = apt.entities;
+                final int[] cs = apt.counts;
+                for (int i=0; i < es.length; i++)
+                    result.put(append(path, es[i]), cs[i]);
+            }
+        });
+        return result;
+    }
+
+    public SparseDoubleVector toSDV (final Indexer<int[]> featureIndexer) {
+        final Int2DoubleSortedMap features = new Int2DoubleRBTreeMap();
+        walk(new APTVisitor<ArrayAPT>() {
+            @Override
+            public void visit(int[] path, ArrayAPT apt) {
+                final int[] es = apt.entities;
+                final int[] cs = apt.counts;
+                for (int i=0; i < es.length; i++)
+                    features.put(featureIndexer.getIndex(append(path, es[i])), cs[i]);
+            }
+        });
+
+        int[] keys = new int[features.size()];
+        double[] vals = new double[features.size()];
+
+        int i = 0;
+        for (Int2DoubleMap.Entry e : features.int2DoubleEntrySet()) {
+            keys[i] = e.getIntKey();
+            vals[i++] = e.getDoubleValue();
+        }
+
+
+        return new SparseDoubleVector(keys, vals, keys[keys.length-1], keys.length);
+    }
+
 
 }
 
