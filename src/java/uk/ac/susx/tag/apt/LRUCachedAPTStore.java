@@ -63,7 +63,7 @@ public class LRUCachedAPTStore<T extends APT> implements APTStore<T> {
 
     @Override
     public void include(int entityID, APT apt) throws IOException {
-        trees.put(entityID, (T) get(entityID).merged(apt, Integer.MAX_VALUE));
+        trees.put(entityID, (T) get(entityID).merged(apt, depth));
     }
 
     public void include(RGraph rGraph) throws IOException {

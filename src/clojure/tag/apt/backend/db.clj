@@ -118,9 +118,10 @@
       (include [this k v]
         (.include store k v)
         (swap! sum inc))
-      (include [this ^RGraph g]
+      (include [this g]
         (let [apts (.fromGraph aapt-factory g)
               ids (.entityIds g)]
           (dotimes [n (alength apts)]
-            (.include store (aget ids n) (aget apts n))
-            (swap! sum inc)))))))
+            (if-let [apt (aget apts n)]
+              (.include store (aget ids n) apt)
+              (swap! sum inc))))))))

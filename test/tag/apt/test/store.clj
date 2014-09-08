@@ -10,7 +10,7 @@
 
 (deftest caching-store
   (let [backend (in-memory-byte-store)
-        store (LRUCachedAPTStore. 2 factory backend)
+        store (LRUCachedAPTStore. 2 (Integer/MAX_VALUE) factory backend)
         empty (.empty factory)
         a (-> empty (.withCount 0 1) (.withCount 1 1))
         b (-> empty (.withCount 1 1) (.withCount 2 1))
