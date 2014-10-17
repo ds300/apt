@@ -32,19 +32,20 @@ public class AccumulativeLazyAPT implements APT {
 
 
     // use tree based maps for fast insertion when things get massive
-    Int2IntRBTreeCounter tokenCounts;
+    Int2FloatRBTreeCounter entityScores;
     Int2ObjectRBTreeMap<AccumulativeLazyAPT> edges;
     private boolean frozen = false;
-    private int sum = 0;
+    private float sum = 0;
 
     public AccumulativeLazyAPT() {
-        tokenCounts = new Int2IntRBTreeCounter();
+        entityScores = new Int2FloatRBTreeCounter();
         edges = new Int2ObjectRBTreeMap<>();
     }
 
+    // returns the size in bytes that this APT will occupy on disk
     private int size() {
         int s = 16; // header
-        s += tokenCounts.size() << 3;
+        s += entityScores.size() << 3;
         s += 4 * edges.size(); // edge labels
         for (AccumulativeLazyAPT apt : edges.values()) {
             s += apt.size();
@@ -64,18 +65,18 @@ public class AccumulativeLazyAPT implements APT {
         //  1.  number of bytes for token counts
         //  2.  number of bytes for children
         //  3.  number of children
-        //  4.  sum of entity counts (not necessarily equal to (reduce + tokenCounts.values())
+        //  4.  sum of entity counts (not necessarily equal to (reduce + entityScores.values())
 
-        Util.int2bytes(tokenCounts.size() << 3, bytes, offset); // 1
+        Util.int2bytes(entityScores.size() << 3, bytes, offset); // 1
         // 2 calculated later
         Util.int2bytes(edges.size(), bytes, offset + 8); // 3
-        Util.int2bytes(sum, bytes, offset + 12);
+        Util.float2bytes(sum, bytes, offset + 12);
 
         // then serialize token counts
         int i = offset + 16;
-        for (Int2IntMap.Entry entry : tokenCounts.int2IntEntrySet()) {
+        for (Int2FloatMap.Entry entry : entityScores.int2FloatEntrySet()) {
             Util.int2bytes(entry.getIntKey(), bytes, i);
-            Util.int2bytes(entry.getIntValue(), bytes, i+4);
+            Util.float2bytes(entry.getFloatValue(), bytes, i + 4);
             i+=8;
         }
 
@@ -134,9 +135,9 @@ public class AccumulativeLazyAPT implements APT {
 //    }
 
     private OffsetTuple mergeIntoExisting(final byte[] existing, final int existingOffset, final byte[] bytes, final int bytesOffset) {
-        final int existingTokenCountSize = Util.bytes2int(existing, existingOffset);
+        final int existingEntityScoreSize = Util.bytes2int(existing, existingOffset);
         final int existingKidsSize = Util.bytes2int(existing, existingOffset + 4);
-        final int existingSum = Util.bytes2int(existing, existingOffset + 12);
+        final float existingSum = Util.bytes2float(existing, existingOffset + 12);
         // mutable variants of offset pointers
 
         // declare header numbers here and serialize them at the end.
@@ -144,61 +145,61 @@ public class AccumulativeLazyAPT implements APT {
         final int kidsSize;
         final int numKids;
 
-        if (tokenCounts.size() == 0) {
+        if (entityScores.size() == 0) {
             // I don't think it's possible for this branch to be taken, but better safe than sorry I s'pose.
-            tokenCountsSize = existingTokenCountSize;
+            tokenCountsSize = existingEntityScoreSize;
             System.arraycopy(existing, existingOffset, bytes, bytesOffset, tokenCountsSize + 16);  // + 16 for header
 //            checkExpected(bytes, bytesOffset + 12, tokenCountsSize);
         } else {
             // merge
             int outOffset = bytesOffset + 16; // skip header
 
-            final int numNewCounts = tokenCounts.size();
+            final int numNewScores = entityScores.size();
 
-            final int existingCountsStart = existingOffset + 16;
-            final int existingCountsEnd = existingCountsStart + existingTokenCountSize;
+            final int existingScoresStart = existingOffset + 16;
+            final int existingCountsEnd = existingScoresStart + existingEntityScoreSize;
 
 
             // i iterates over bytes in existing
-            int i = existingCountsStart;
-            // j iterates over new (id, count) pairs in tokenCounts
+            int i = existingScoresStart;
+            // j iterates over new (id, score) pairs in entityScores
             int j = 0;
 
-            // pull new counts out of map into array for a simpler merge loop.
-            int[] newTokenCounts = new int[numNewCounts * 2];
+            // pull new scores out of map into array for a simpler merge loop.
+            int[] newEntityScores = new int[numNewScores * 2];
 
-            for (Int2IntMap.Entry e : tokenCounts.int2IntEntrySet()) {
-                newTokenCounts[j++] = e.getIntKey();
-                newTokenCounts[j++] = e.getIntValue();
+            for (Int2FloatMap.Entry e : entityScores.int2FloatEntrySet()) {
+                newEntityScores[j++] = e.getIntKey();
+                newEntityScores[j++] = Float.floatToRawIntBits(e.getFloatValue());
             }
 
             j = 0;
 
 
             // now iterate over arrays in parallel, merge-sort style
-            while (i < existingCountsEnd && j < numNewCounts) {
+            while (i < existingCountsEnd && j < numNewScores) {
                 int existingEntityID = Util.bytes2int(existing, i);
-                int newEntityID = newTokenCounts[j << 1];
+                int newEntityID = newEntityScores[j << 1];
 
                 if (newEntityID == existingEntityID) {
-                    // new counts for an entity already seen, so add the new ones to the existing ones
-                    int count = newTokenCounts[(j << 1) + 1] + Util.bytes2int(existing, i + 4);
+                    // new scores for an entity already seen, so add the new ones to the existing ones
+                    float score = Float.intBitsToFloat(newEntityScores[(j << 1) + 1]) + Util.bytes2float(existing, i + 4);
                     Util.int2bytes(newEntityID, bytes, outOffset);
-                    Util.int2bytes(count, bytes, outOffset+4);
+                    Util.float2bytes(score, bytes, outOffset + 4);
 //                    checkExpected(bytes, outOffset, 8);
                     outOffset += 8;
                     i += 8;
                     j++;
                 } else if (newEntityID < existingEntityID) {
                     // new entity not previously seen
-                    int count = newTokenCounts[(j << 1) + 1];
+                    int score = newEntityScores[(j << 1) + 1];
                     Util.int2bytes(newEntityID, bytes, outOffset);
-                    Util.int2bytes(count, bytes, outOffset+4);
+                    Util.int2bytes(score, bytes, outOffset+4);
 //                    checkExpected(bytes, outOffset, 8);
                     outOffset += 8;
                     j++;
                 } else {
-                    // existing entity with no new counts, just copy the bytes
+                    // existing entity with no new scores, just copy the bytes
                     System.arraycopy(existing, i, bytes, outOffset, 8);
 //                    checkExpected(bytes, outOffset, 8);
                     outOffset += 8;
@@ -206,7 +207,7 @@ public class AccumulativeLazyAPT implements APT {
                 }
             }
 
-            // serialize any remaining existing counts
+            // serialize any remaining existing scores
             if (i < existingCountsEnd) {
                 int numBytesRemaining = existingCountsEnd - i;
                 System.arraycopy(existing, i, bytes, outOffset, numBytesRemaining);
@@ -214,10 +215,10 @@ public class AccumulativeLazyAPT implements APT {
                 outOffset += numBytesRemaining;
             }
 
-            // or any remaining new counts
-            while (j < numNewCounts) {
-                Util.int2bytes(newTokenCounts[j << 1], bytes, outOffset);
-                Util.int2bytes(newTokenCounts[(j << 1) + 1], bytes, outOffset + 4);
+            // or any remaining new scores
+            while (j < numNewScores) {
+                Util.int2bytes(newEntityScores[j << 1], bytes, outOffset);
+                Util.int2bytes(newEntityScores[(j << 1) + 1], bytes, outOffset + 4);
 //                checkExpected(bytes, outOffset, 8);
                 outOffset += 8;
                 j++;
@@ -228,7 +229,7 @@ public class AccumulativeLazyAPT implements APT {
 
         if (edges.size() == 0) {
             // just copy the kids over.
-            System.arraycopy(existing, existingOffset + 16 + existingTokenCountSize, bytes, bytesOffset + 16 + tokenCountsSize, existingKidsSize);
+            System.arraycopy(existing, existingOffset + 16 + existingEntityScoreSize, bytes, bytesOffset + 16 + tokenCountsSize, existingKidsSize);
             kidsSize = existingKidsSize;
             numKids = Util.bytes2int(existing, existingOffset + 8);
 //            checkExpected(bytes, bytesOffset + 12 + tokenCountsSize, existingKidsSize);
@@ -238,12 +239,12 @@ public class AccumulativeLazyAPT implements APT {
             int uniqueKids = 0;
             int kidsFromExisting = 0;
 
-            final int existingKidsEnd = existingOffset + 16 + existingTokenCountSize + existingKidsSize;
+            final int existingKidsEnd = existingOffset + 16 + existingEntityScoreSize + existingKidsSize;
 
             final int[] newEdges = edges.keySet().toIntArray(); // sorted.
 
             // i iterates over bytes in existing
-            int i = existingOffset + 16 + existingTokenCountSize;
+            int i = existingOffset + 16 + existingEntityScoreSize;
             // j iterates over newEdges
             int j = 0;
 
@@ -266,7 +267,7 @@ public class AccumulativeLazyAPT implements APT {
                     kidsFromExisting++;
                 } else if (existingEdge < newEdge) {
                     // calculate size of kid (including edge label) so we can just use System.arrayCopy
-                    int storedKidSize = Util.bytes2int(existing, i+4) //tkncounts size
+                    int storedKidSize = Util.bytes2int(existing, i+4) //tknscores size
                             + Util.bytes2int(existing, i+8) // kids size
                             + 16 // header
                             + 4; // edge label
@@ -316,11 +317,11 @@ public class AccumulativeLazyAPT implements APT {
         Util.int2bytes(tokenCountsSize, bytes, bytesOffset);
         Util.int2bytes(kidsSize, bytes, bytesOffset + 4);
         Util.int2bytes(numKids, bytes, bytesOffset + 8);
-        Util.int2bytes(existingSum + sum, bytes, bytesOffset + 12);
+        Util.float2bytes(existingSum + sum, bytes, bytesOffset + 12);
 
 //        checkExpected(bytes, bytesOffset, 12);
 
-        return new OffsetTuple(existingOffset + 16 + existingKidsSize + existingTokenCountSize, bytesOffset + 16 + tokenCountsSize + kidsSize);
+        return new OffsetTuple(existingOffset + 16 + existingKidsSize + existingEntityScoreSize, bytesOffset + 16 + tokenCountsSize + kidsSize);
     }
 
     synchronized void merge (APT other, int depth, int returnPath) throws FrozenException {
@@ -334,8 +335,8 @@ public class AccumulativeLazyAPT implements APT {
 
             sum += other.sum();
 
-            for (Int2IntMap.Entry e : other.entityCounts().int2IntEntrySet()) {
-                tokenCounts.increment(e.getIntKey(), e.getIntValue());
+            for (Int2FloatMap.Entry e : other.entityScores().int2FloatEntrySet()) {
+                entityScores.increment(e.getIntKey(), e.getFloatValue());
             }
 
             if (depth > 0) {
@@ -357,9 +358,9 @@ public class AccumulativeLazyAPT implements APT {
     private void mergeArrayAPT(ArrayAPT other, int depth, int returnPath) {
         sum += other.sum();
         int[] entities = other.entities;
-        int[] counts = other.counts;
+        float[] scores = other.scores;
         for (int i=0; i < entities.length; i++)
-            tokenCounts.increment(entities[i], counts[i]);
+            entityScores.increment(entities[i], scores[i]);
 
         if (depth > 0) {
             int[] oedges = other.edges;
@@ -385,12 +386,12 @@ public class AccumulativeLazyAPT implements APT {
     }
 
     @Override
-    public int getCount(int entityId) {
+    public float getScore(int entityId) {
         throw new UnsupportedOperationException();
     }
 
     @Override
-    public int sum() {
+    public float sum() {
         throw new UnsupportedOperationException();
     }
 
@@ -405,7 +406,7 @@ public class AccumulativeLazyAPT implements APT {
     }
 
     @Override
-    public Int2IntSortedMap entityCounts() {
+    public Int2FloatSortedMap entityScores() {
         throw new UnsupportedOperationException();
     }
 
@@ -420,7 +421,12 @@ public class AccumulativeLazyAPT implements APT {
     }
 
     @Override
-    public APT withCount(int tokenId, int count) {
+    public APT withScore(int tokenId, float score) {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public APT withIncrementedScore(int tokenId, float score) {
         throw new UnsupportedOperationException();
     }
 

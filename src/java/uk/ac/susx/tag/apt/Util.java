@@ -3,17 +3,36 @@ package uk.ac.susx.tag.apt;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.ByteBuffer;
 
 /**
  * @author ds300
  * conversions from bytes assume big endian, conversions to bytes output big endian.
  */
 public class Util {
+    public static byte [] float2Bytes (float value)
+    {
+        return int2bytes(Float.floatToRawIntBits(value));
+    }
+
+    public static void float2bytes (float value, byte[] bytes, int offset) {
+        int2bytes(Float.floatToRawIntBits(value), bytes, offset);
+    }
+
+    public static float bytes2float (byte[] bytes) {
+        return Float.intBitsToFloat(bytes2int(bytes));
+    }
+
+    public static float bytes2float (byte[] bytes, int offset) {
+        return Float.intBitsToFloat(bytes2int(bytes, offset));
+    }
+
     public static byte[] int2bytes (int i) {
         byte[] bytes = new byte[4];
         int2bytes(i, bytes, 0);
         return bytes;
     }
+
 
     public static void int2bytes (int i, byte[] bytes, int offset) {
         bytes[offset + 0] = (byte)(i >>> 24);

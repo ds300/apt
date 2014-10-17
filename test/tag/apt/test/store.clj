@@ -12,8 +12,8 @@
   (let [backend (in-memory-byte-store)
         store (LRUCachedAPTStore. 2 (Integer/MAX_VALUE) factory backend)
         empty (.empty factory)
-        a (-> empty (.withCount 0 1) (.withCount 1 1))
-        b (-> empty (.withCount 1 1) (.withCount 2 1))
+        a (-> empty (.withScore 0 (float 1.0)) (.withScore 1 (float 1.0)))
+        b (-> empty (.withScore 1 (float 1.0)) (.withScore 2 (float 1.0)))
         c (.merged a b (Integer/MAX_VALUE))]
     (.put store (int 10) a)
     (.put store (int 11) b)

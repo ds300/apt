@@ -36,7 +36,7 @@
     ;; iterate over reference lexicon and compare contents
     (doseq [[entityID apt] (ref)]
       (let [from-backend (.get backend entityID)
-            from-cached-backend (.get backend entityID)
+            from-cached-backend (.get caching-backend entityID)
             reference (util/serialize apt)]
         (is (Arrays/equals from-backend reference))
         (is (Arrays/equals from-cached-backend reference))))))

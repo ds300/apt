@@ -1,5 +1,6 @@
 package uk.ac.susx.tag.apt;
 
+import it.unimi.dsi.fastutil.ints.Int2FloatSortedMap;
 import it.unimi.dsi.fastutil.ints.Int2IntSortedMap;
 import it.unimi.dsi.fastutil.ints.Int2ObjectSortedMap;
 
@@ -17,17 +18,17 @@ public interface APT {
 
 
     /**
-     * Get the entity count for this node
-     * @param entityId the ID of the token to retrieve the count for
-     * @return the count
+     * Get the entity score for this node
+     * @param entityId the ID of the token to retrieve the score for
+     * @return the score
      */
-    int getCount(int entityId);
+    float getScore(int entityId);
 
     /**
-     * Get the sum of all counts at this node
+     * Get the sum of all scores at this node
      * @return
      */
-    int sum();
+    float sum();
 
     /**
      * Create a new APT which is the result of merging this pdt with {@code other} up to {@code depth} nodes deep.
@@ -46,9 +47,9 @@ public interface APT {
 
 
     /**
-     * @return a map from entity IDs to counts for this node
+     * @return a map from entity IDs to scores for this node
      */
-    Int2IntSortedMap entityCounts();
+    Int2FloatSortedMap entityScores();
 
     /**
      * @return a map from relation IDs to child nodes
@@ -63,13 +64,22 @@ public interface APT {
     void walk(APTVisitor visitor);
 
     /**
-     * Creates a new APT which includes the specified token/count pair. Incrementing any existing count for
-     * {@code token} by {@code count}.
+     * Creates a new APT which includes the specified token/score pair. Replacing any existing score for
+     * {@code token}.
      * @param tokenId the ID of the token
-     * @param count the count
+     * @param score the score
      * @return the new APT
      */
-    APT withCount(int tokenId, int count);
+    APT withScore(int tokenId, float score);
+
+    /**
+     * Creates a new APT which includes the specified token/score pair. Incrementing any existing score for
+     * {@code token} by {@code score}.
+     * @param tokenId the ID of the token
+     * @param score the score
+     * @return the new APT
+     */
+    APT withIncrementedScore(int tokenId, float score);
 
     /**
      * Creates a new APT which includes the specified edge. The child node will be copied with a reverse edge inserted.
@@ -81,10 +91,10 @@ public interface APT {
 
     /**
      * Serializes the APT to byte format. The format is as follows (integers in big-endian)
-     *    int: number of bytes to store entity-count pairs
+     *    int: number of bytes to store entity-score pairs
      *    int: number of bytes to store children
      *    int: number of children
-     *    (int int)*: entity-count pairs stored serially in ascending order of key
+     *    (int int)*: entity-score pairs stored serially in ascending order of key
      *                e.g. the map {0: 1, 3: 4} would be 0x00000000 00000001 00000003 00000004
      *    (int APT)*: relation-child paris stored serially in ascending order of relation id, where APT is the format
      *                described here.

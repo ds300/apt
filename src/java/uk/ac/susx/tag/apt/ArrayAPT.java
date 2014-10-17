@@ -16,13 +16,14 @@ import uk.ac.susx.mlcl.lib.collect.SparseDoubleVector;
  */
 public class ArrayAPT implements APT {
     private static final int[] EMPTY_INTS = new int[0];
+    private static final float[] EMPTY_FLOATS = new float[0];
     private static final ArrayAPT[] EMPTY_KIDS = new ArrayAPT[0];
 
     int[] edges  = EMPTY_INTS;
     ArrayAPT[] kids = EMPTY_KIDS;
     int[] entities = EMPTY_INTS;
-    int[] counts = EMPTY_INTS;
-    private int sum = 0;
+    float[] scores = EMPTY_FLOATS;
+    private float sum = 0;
 
     private ArrayAPT() {}
 
@@ -92,7 +93,7 @@ public class ArrayAPT implements APT {
                 ArrayAPT node = result[i];
                 if (node != null) {
                     if (eid != -1) {
-                        node.insertTokenCount(eid, 1);
+                        node.incrementScore(eid, 1);
                     } else {
                         // -1 is a pseudo entityID which means "This should contribute towards the probability mass, but
                         // don't bother actually storing the count."
@@ -108,7 +109,7 @@ public class ArrayAPT implements APT {
     private ArrayAPT copyFor(int dep, ArrayAPT parent, int depth) {
         ArrayAPT result = new ArrayAPT();
         result.entities = entities;
-        result.counts = counts;
+        result.scores = scores;
         result.sum = sum;
 
         if (depth > 0) {
@@ -182,28 +183,31 @@ public class ArrayAPT implements APT {
         }
     }
 
-    private void insertTokenCount(int tokenIdx, int count) {
-        int idx = Arrays.binarySearch(entities, tokenIdx);
-        sum += count;
+    // mutating method, for use during construction time only
+    private void incrementScore(int entityId, float score) {
+        sum += score;
+        int idx = Arrays.binarySearch(entities, entityId);
         if (idx >= 0) {
-            counts[idx] += count;
+            scores[idx] += score;
         } else {
-            int[] newTokens = new int[entities.length + 1];
-            int[] newCounts = new int[entities.length + 1];
+            int[] newEntites = new int[entities.length + 1];
+            float[] newScores = new float[entities.length + 1];
 
             int insertionPoint = -(idx + 1);
             if (insertionPoint != 0) {
-                System.arraycopy(entities, 0, newTokens, 0, insertionPoint);
-                System.arraycopy(counts, 0, newCounts, 0, insertionPoint);
+                System.arraycopy(entities, 0, newEntites, 0, insertionPoint);
+                System.arraycopy(scores, 0, newScores, 0, insertionPoint);
             }
-            newTokens[insertionPoint] = tokenIdx;
-            newCounts[insertionPoint] = count;
+            newEntites[insertionPoint] = entityId;
+            newScores[insertionPoint] = score;
+
             if (insertionPoint < entities.length) {
-                System.arraycopy(entities, insertionPoint, newTokens, insertionPoint + 1, entities.length - insertionPoint);
-                System.arraycopy(counts, insertionPoint, newCounts, insertionPoint + 1, entities.length - insertionPoint);
+                System.arraycopy(entities, insertionPoint, newEntites, insertionPoint + 1, entities.length - insertionPoint);
+                System.arraycopy(scores, insertionPoint, newScores, insertionPoint + 1, entities.length - insertionPoint);
             }
-            entities = newTokens;
-            counts = newCounts;
+
+            entities = newEntites;
+            scores = newScores;
         }
     }
 
@@ -219,8 +223,8 @@ public class ArrayAPT implements APT {
 
         for (int i=0; i < entities.length; i++) {
             int tkn = entities[i];
-            long count = counts[i];
-            writer.write(repeatString(space, depth) + "| " + tokenResolver.resolve(tkn).toString() + " ("+count+")\n");
+            float score = scores[i];
+            writer.write(repeatString(space, depth) + "| " + tokenResolver.resolve(tkn).toString() + " ("+score+")\n");
         }
 
         writer.write(repeatString(space, depth) + "EDGES\n");
@@ -264,16 +268,16 @@ public class ArrayAPT implements APT {
 
 
     @Override
-    public int getCount(int entityId) {
+    public float getScore(int entityId) {
         int idx = Arrays.binarySearch(entities, entityId);
         if (idx >= 0)
-            return counts[idx];
+            return scores[idx];
         else
             return 0;
     }
 
     @Override
-    public int sum() {
+    public float sum() {
         return sum;
     }
 
@@ -288,8 +292,8 @@ public class ArrayAPT implements APT {
     }
 
     @Override
-    public Int2IntSortedMap entityCounts() {
-        return new Int2IntArraySortedMap(entities, counts);
+    public Int2FloatSortedMap entityScores() {
+        return new Int2FloatArraySortedMap(entities, scores);
     }
 
     @Override
@@ -338,36 +342,69 @@ public class ArrayAPT implements APT {
     }
 
     @Override
-    public ArrayAPT withCount(final int entityId, final int count) {
+    public ArrayAPT withScore(final int entityId, final float score) {
         return modifyCloned(new CloneModifier() {
             @Override
             public void modify(ArrayAPT clone) {
-                clone.sum += count;
                 int idx = Arrays.binarySearch(entities, entityId);
                 if (idx < 0) {
+                    clone.sum += score;
                     int[] newEntities = new int[entities.length + 1];
-                    int[] newCounts = new int[entities.length + 1];
+                    float[] newScores = new float[entities.length + 1];
 
                     int insertionPoint = -(idx + 1);
                     if (insertionPoint != 0) {
                         System.arraycopy(entities, 0, newEntities, 0, insertionPoint);
-                        System.arraycopy(counts, 0, newCounts, 0, insertionPoint);
+                        System.arraycopy(scores, 0, newScores, 0, insertionPoint);
                     }
                     newEntities[insertionPoint] = entityId;
-                    newCounts[insertionPoint] = count;
+                    newScores[insertionPoint] = score;
                     if (insertionPoint < entities.length) {
                         System.arraycopy(entities, insertionPoint, newEntities, insertionPoint + 1, entities.length - insertionPoint);
-                        System.arraycopy(counts, insertionPoint, newCounts, insertionPoint + 1, entities.length - insertionPoint);
+                        System.arraycopy(scores, insertionPoint, newScores, insertionPoint + 1, entities.length - insertionPoint);
                     }
                     clone.entities = newEntities;
-                    clone.counts = newCounts;
+                    clone.scores = newScores;
                 } else {
-                    clone.counts = new int[counts.length];
-                    System.arraycopy(counts, 0, clone.counts, 0, counts.length);
-                    clone.counts[idx] += count;
+                    clone.sum -= scores[idx];
+                    clone.sum += score;
+                    clone.scores = new float[scores.length];
+                    System.arraycopy(scores, 0, clone.scores, 0, scores.length);
+                    clone.scores[idx] = score;
                 }
             }
+        });
+    }
 
+    @Override
+    public ArrayAPT withIncrementedScore(final int entityId, final float score) {
+        return modifyCloned(new CloneModifier() {
+            @Override
+            public void modify(ArrayAPT clone) {
+                clone.sum += score;
+                int idx = Arrays.binarySearch(entities, entityId);
+                if (idx < 0) {
+                    int[] newEntities = new int[entities.length + 1];
+                    float[] newScores = new float[entities.length + 1];
+
+                    int insertionPoint = -(idx + 1);
+                    if (insertionPoint != 0) {
+                        System.arraycopy(entities, 0, newEntities, 0, insertionPoint);
+                        System.arraycopy(scores, 0, newScores, 0, insertionPoint);
+                    }
+                    newEntities[insertionPoint] = entityId;
+                    newScores[insertionPoint] = score;
+                    if (insertionPoint < entities.length) {
+                        System.arraycopy(entities, insertionPoint, newEntities, insertionPoint + 1, entities.length - insertionPoint);
+                        System.arraycopy(scores, insertionPoint, newScores, insertionPoint + 1, entities.length - insertionPoint);
+                    }
+                    clone.entities = newEntities;
+                    clone.scores = newScores;
+                } else {
+                    clone.scores = Arrays.copyOf(scores, scores.length);
+                    clone.scores[idx] += score;
+                }
+            }
         });
     }
 
@@ -405,17 +442,56 @@ public class ArrayAPT implements APT {
         }
     }
 
-    public static ArrayAPT merge(ArrayAPT a, ArrayAPT b, int depth) {
-        return merge(a, b, depth, 0, null);
+    /**
+     * instances of ScoreMerger are passed to {@link ArrayAPT#merge} to determine how shared entity scores are combined
+     * to form the merged APT.
+     */
+    public static interface ScoreMerger {
+        float merge (float scoreA, float scoreB, int entityId, ArrayAPT a, ArrayAPT b);
+        public static final ScoreMerger ADD = new ScoreMerger() {
+            @Override
+            public float merge(float scoreA, float scoreB, int entityId, ArrayAPT a, ArrayAPT b) {
+                return scoreA + scoreB;
+            }
+        };
+
+        public static final ScoreMerger MULTIPLY = new ScoreMerger() {
+            @Override
+            public float merge(float scoreA, float scoreB, int entityId, ArrayAPT a, ArrayAPT b) {
+                return scoreA * scoreB;
+            }
+        };
+
+        public static final ScoreMerger MIN = new ScoreMerger() {
+            @Override
+            public float merge(float scoreA, float scoreB, int entityId, ArrayAPT a, ArrayAPT b) {
+                return Math.min(scoreA, scoreB);
+            }
+        };
+
+        public static final ScoreMerger MAX = new ScoreMerger() {
+            @Override
+            public float merge(float scoreA, float scoreB, int entityId, ArrayAPT a, ArrayAPT b) {
+                return Math.max(scoreA, scoreB);
+            }
+        };
     }
 
-    private static ArrayAPT merge(ArrayAPT a, ArrayAPT b, int depth, int returnPath, ArrayAPT parent) {
+    public static ArrayAPT merge(ArrayAPT a, ArrayAPT b, int depth) {
+        return merge(a, b, depth, ScoreMerger.ADD, 0, null);
+    }
+
+    public static ArrayAPT merge(ArrayAPT a, ArrayAPT b, int depth, ScoreMerger scoreMerger) {
+        return merge(a, b, depth, scoreMerger, 0, null);
+    }
+
+    private static ArrayAPT merge(ArrayAPT a, ArrayAPT b, int depth, ScoreMerger scoreMerger, int returnPath, ArrayAPT parent) {
         final int[] a_edges = a.edges;
         final int[] b_edges = b.edges;
-        final int[] a_tokens = a.entities;
-        final int[] b_tokens = b.entities;
-        final int[] a_counts = a.counts;
-        final int[] b_counts = b.counts;
+        final int[] a_entities = a.entities;
+        final int[] b_entities = b.entities;
+        final float[] a_scores = a.scores;
+        final float[] b_scores = b.scores;
         final ArrayAPT[] a_kids = a.kids;
         final ArrayAPT[] b_kids = b.kids;
 
@@ -424,40 +500,40 @@ public class ArrayAPT implements APT {
 
         result.sum = a.sum + b.sum;
 
-        final int uniqueLabels = Util.countUnique(a_tokens, b_tokens);
+        final int uniqueLabels = Util.countUnique(a_entities, b_entities);
         int[] tokens = new int[uniqueLabels];
-        int[] counts = new int[uniqueLabels];
+        float[] scores = new float[uniqueLabels];
 
         int i=0, x=0, y=0;
 
-        while (x < a_tokens.length && y < b_tokens.length) {
-            if (a_tokens[x] == b_tokens[y]) {
-                tokens[i] = a_tokens[x];
-                counts[i] = a_counts[x] + b_counts[y];
+        while (x < a_entities.length && y < b_entities.length) {
+            if (a_entities[x] == b_entities[y]) {
+                tokens[i] = a_entities[x];
+                scores[i] = scoreMerger.merge(a_scores[x], b_scores[y], a_entities[x], a, b);
                 x++;
                 y++;
-            } else if (a_tokens[x] < b_tokens[y]) {
-                tokens[i] = a_tokens[x];
-                counts[i] = a_counts[x];
+            } else if (a_entities[x] < b_entities[y]) {
+                tokens[i] = a_entities[x];
+                scores[i] = a_scores[x];
                 x++;
             } else {
-                tokens[i] = b_tokens[y];
-                counts[i] = b_counts[y];
+                tokens[i] = b_entities[y];
+                scores[i] = b_scores[y];
                 y++;
             }
             i++;
         }
 
-        if (x < a_tokens.length) {
-            System.arraycopy(a_tokens, x, tokens, i, a_tokens.length - x);
-            System.arraycopy(a_counts, x, counts, i, a_tokens.length - x);
-        } else if (y < b_tokens.length) {
-            System.arraycopy(b_tokens, y, tokens, i, b_tokens.length - y);
-            System.arraycopy(b_counts, y, counts, i, b_tokens.length - y);
+        if (x < a_entities.length) {
+            System.arraycopy(a_entities, x, tokens, i, a_entities.length - x);
+            System.arraycopy(a_scores, x, scores, i, a_entities.length - x);
+        } else if (y < b_entities.length) {
+            System.arraycopy(b_entities, y, tokens, i, b_entities.length - y);
+            System.arraycopy(b_scores, y, scores, i, b_entities.length - y);
         }
 
         result.entities = tokens;
-        result.counts = counts;
+        result.scores = scores;
 
 
         final int uniqueEdges = Util.countUnique(a_edges, b_edges);
@@ -474,7 +550,7 @@ public class ArrayAPT implements APT {
                 if (adep == returnPath) {
                     kids[i] = parent;
                 } else {
-                    kids[i] = merge(a_kids[x], b_kids[y], depth-1, -adep, result);
+                    kids[i] = merge(a_kids[x], b_kids[y], depth-1, scoreMerger, -adep, result);
                 }
                 x++;
                 y++;
@@ -524,7 +600,7 @@ public class ArrayAPT implements APT {
         int outputOffset = offset + 16;
         for (int i=0; i<entities.length;i++) {
             Util.int2bytes(entities[i], bytes, outputOffset);
-            Util.int2bytes(counts[i], bytes, outputOffset+4);
+            Util.float2bytes(scores[i], bytes, outputOffset+4);
             outputOffset += 8;
         }
 
@@ -546,7 +622,7 @@ public class ArrayAPT implements APT {
         Util.int2bytes(entities.length << 3, bytes, offset);
         Util.int2bytes(kidsLength, bytes, offset + 4);
         Util.int2bytes(numKids, bytes, offset + 8);
-        Util.int2bytes(sum, bytes, offset + 12);
+        Util.float2bytes(sum, bytes, offset + 12);
 
         return outputOffset;
     }
@@ -570,23 +646,23 @@ public class ArrayAPT implements APT {
 
         final int numEntitites = Util.bytes2int(bytes, offset) >>> 3;
         final int numKids = Util.bytes2int(bytes, offset + 8) + (parent == null ? 0 : 1);
-        result.sum = Util.bytes2int(bytes, offset + 12);
+        result.sum = Util.bytes2float(bytes, offset + 12);
 
         offset += 16;
 
         if (numEntitites > 0) {
             int[] entities = new int[numEntitites];
-            int[] counts = new int[numEntitites];
+            float[] scores = new float[numEntitites];
 
 
             for (int i=0; i < numEntitites; i++) {
                 entities[i] = Util.bytes2int(bytes, offset);
-                counts[i] = Util.bytes2int(bytes, offset + 4);
+                scores[i] = Util.bytes2float(bytes, offset + 4);
                 offset += 8;
             }
 
             result.entities = entities;
-            result.counts = counts;
+            result.scores = scores;
         }
 
         if (numKids > 0) {
@@ -648,7 +724,7 @@ public class ArrayAPT implements APT {
         } else {
 
             for (int i=0; i<entities.length;i++)
-                if (entities[i] != other.entities[i] || counts[i] != other.counts[i])
+                if (entities[i] != other.entities[i] || scores[i] != other.scores[i])
                     return false;
 
             for (int i=0; i<kids.length; i++)
@@ -669,13 +745,13 @@ public class ArrayAPT implements APT {
     }
 
 
-    public Map<int[], Integer> extractFeatures () {
-        final Map<int[], Integer> result = new HashMap<>();
+    public Map<int[], Float> extractFeatures () {
+        final Map<int[], Float> result = new HashMap<>();
         walk(new APTVisitor<ArrayAPT>() {
             @Override
             public void visit(int[] path, ArrayAPT apt) {
                 final int[] es = apt.entities;
-                final int[] cs = apt.counts;
+                final float[] cs = apt.scores;
                 for (int i=0; i < es.length; i++)
                     result.put(append(path, es[i]), cs[i]);
             }
@@ -689,7 +765,7 @@ public class ArrayAPT implements APT {
             @Override
             public void visit(int[] path, ArrayAPT apt) {
                 final int[] es = apt.entities;
-                final int[] cs = apt.counts;
+                final float[] cs = apt.scores;
                 for (int i=0; i < es.length; i++)
                     features.put(featureIndexer.getIndex(append(path, es[i])), cs[i]);
             }
@@ -703,7 +779,6 @@ public class ArrayAPT implements APT {
             keys[i] = e.getIntKey();
             vals[i++] = e.getDoubleValue();
         }
-
 
         return new SparseDoubleVector(keys, vals, keys[keys.length-1], keys.length);
     }
