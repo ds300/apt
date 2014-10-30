@@ -24,7 +24,7 @@ public interface DistributionalLexicon<EntityType, RelationType, APTType extends
      * @return the total number of observations contributing to this lexicon.
      * A single observation being a record of the form (entity, relation-path, entity2, count)
      */
-    Long getSum();
+    float getSum();
 
 
     /**

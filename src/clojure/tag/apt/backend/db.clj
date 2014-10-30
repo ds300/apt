@@ -6,6 +6,7 @@
            (java.io File Writer ByteArrayOutputStream ByteArrayInputStream)
            (java.util.zip GZIPOutputStream GZIPInputStream))
   (:require [clojure.java.io :as io]
+            [clojure.edn]
             [tag.apt.util :as util]
             [tag.apt.core :as core])
   )
@@ -88,7 +89,7 @@
 
 (defn get-sum [file]
   (if (.exists file)
-    (Long. (slurp file))
+    (clojure.edn/read-string (slurp file))
     0))
 
 (defn put-sum [file sum]

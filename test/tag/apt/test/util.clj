@@ -3,7 +3,7 @@
            (uk.ac.susx.tag.apt APTFactory Resolver Indexer APT Util)
            (java.util Arrays)
            (clojure.lang IFn IDeref)
-           (java.io ByteArrayOutputStream ByteArrayInputStream)
+           (java.io ByteArrayOutputStream ByteArrayInputStream File)
            (java.util.zip GZIPOutputStream GZIPInputStream))
   (:require [clojure.test :refer :all]))
 
@@ -117,3 +117,10 @@
     (is (= "monkey" (idx 7)))))
 
 (def no-throw-exception (Exception. "Expecting exception to be thrown"))
+
+(defn recursive-delete [file]
+  (when (.exists file)
+    (if (.isDirectory file)
+      (doseq [f (.listFiles file)]
+        (recursive-delete f))
+      (.delete file))))

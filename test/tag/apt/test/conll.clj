@@ -1,5 +1,5 @@
 (ns tag.apt.test.conll
-  (:import (java.io StringReader FileInputStream InputStreamReader BufferedReader)
+  (:import (java.io StringReader FileInputStream InputStreamReader BufferedReader File)
            (uk.ac.susx.tag.apt RGraph ArrayAPT$Factory APTStore AccumulativeAPTStore$Builder DistributionalLexicon)
            (uk.ac.susx.tag.apt AccumulativeAPTStore)
            (java.util.zip GZIPInputStream))
@@ -8,7 +8,8 @@
   (:require [clojure.test :refer :all]
             [tag.apt.util :refer [pmapall-chunked]]
             [tag.apt.test.util :as util]
-            [tag.apt.core :refer [indexer relation-indexer]]))
+            [tag.apt.core :refer [indexer relation-indexer]]
+            [clojure.java.io :as io]))
 
 
 (def text "
@@ -104,10 +105,15 @@ nothing
                          (fn [sent] (.include lexicon (to-graph tkn-index dep-index sent)))
                          (parse in))))))
 
+(def test-dir (io/as-file "data"))
+(def test-data-file (io/as-file "giga-conll/nyt_cna_eng_201012conll.gz"))
 
 (defn do-berkeley-test []
+  (when (.exists test-dir)
+    (util/recursive-delete test-dir))
+  (.mkdirs test-dir)
   (let [store-builder (.setMaxDepth (AccumulativeAPTStore$Builder.) 3)]
-    (with-open [lexicon ^DistributionalLexicon (db/bdb-lexicon "data" "test" store-builder)
+    (with-open [lexicon ^DistributionalLexicon (db/bdb-lexicon test-dir "test" store-builder)
                 in      (-> "giga-conll/nyt_cna_eng_201012conll.gz"
                             FileInputStream.
                             GZIPInputStream.
@@ -121,5 +127,13 @@ nothing
                            (parse in))))
       lexicon)))
 
-(def lex (binding [db/*use-compression* true] (time (do-berkeley-test))))
-;(time (do-integration-test))
+(deftest integration-test
+  (if (.exists test-data-file)
+    (do-integration-test)
+    (println "WARNING: test file '" (.getAbsolutePath test-data-file) "' not found, skipping integration-test")))
+
+(deftest berkeley-test
+  (if (.exists test-data-file)
+    (binding [db/*use-compression* true] (do-berkeley-test))
+    (println "WARNING: test file '" (.getAbsolutePath test-data-file) "' not found, skipping berkeley-test")))
+
