@@ -38,6 +38,12 @@
             (str "_" val))
           (get (.idx2val @state) idx)))
 
+      (getValues [this]
+        (keys (.val2idx @state)))
+
+      (getIndices [this]
+        (keys (.idx2val @state)))
+
       IDeref
       (deref [this] (.val2idx @state))
 
@@ -67,8 +73,13 @@
         (boolean (get (.val2idx @state) s)))
 
       (resolve [this idx]
-        (println @state)
         (get (.idx2val @state) idx))
+
+      (getValues [this]
+        (keys (.val2idx @state)))
+
+      (getIndices [this]
+        (keys (.idx2val @state)))
 
       IDeref
       (deref [this] (.val2idx @state))

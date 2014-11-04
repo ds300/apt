@@ -17,4 +17,9 @@ public interface Indexer<V> {
      * @return true if the value has been previously indexed, false otherwise.
      */
     boolean hasIndex(V value);
+
+    /**
+     * @return an iterable of the values this indexer knows about
+     */
+    Iterable<V> getValues();
 }

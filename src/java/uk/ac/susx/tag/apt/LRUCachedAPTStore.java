@@ -109,7 +109,8 @@ public class LRUCachedAPTStore<T extends APT> implements APTStore<T> {
 
         @Override
         public Builder<T> setFactory(APTFactory<T> factory) {
-            throw new UnsupportedOperationException("AccumulativeAPTStore supplies it's own factory");
+            this.factory = factory;
+            return this;
         }
 
         public Builder<T> setMaxDepth(int depth) {

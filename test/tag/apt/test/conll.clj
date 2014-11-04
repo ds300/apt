@@ -1,11 +1,13 @@
 (ns tag.apt.test.conll
   (:import (java.io StringReader FileInputStream InputStreamReader BufferedReader File)
-           (uk.ac.susx.tag.apt RGraph ArrayAPT$Factory APTStore AccumulativeAPTStore$Builder DistributionalLexicon)
+           (uk.ac.susx.tag.apt RGraph ArrayAPT$Factory APTStore AccumulativeAPTStore$Builder DistributionalLexicon
+                               LRUCachedAPTStore$Builder ArrayAPT)
            (uk.ac.susx.tag.apt AccumulativeAPTStore)
            (java.util.zip GZIPInputStream))
   (:require [tag.apt.conll :refer [parse]]
             [tag.apt.backend.db :as db])
   (:require [clojure.test :refer :all]
+            [tag.apt.ppmi :as ppmi]
             [tag.apt.util :refer [pmapall-chunked]]
             [tag.apt.test.util :as util]
             [tag.apt.core :refer [indexer relation-indexer]]
@@ -137,3 +139,23 @@ nothing
     (binding [db/*use-compression* true] (do-berkeley-test))
     (println "WARNING: test file '" (.getAbsolutePath test-data-file) "' not found, skipping berkeley-test")))
 
+(defn blahtest []
+  (let [store-builder (-> (LRUCachedAPTStore$Builder.)
+                          (.setFactory ArrayAPT/factory)
+                          (.setMaxDepth 3))]
+    (with-open [count-lexicon (db/bdb-lexicon test-dir "test" store-builder)
+                ppmi-lexicon (db/bdb-lexicon test-dir "test-ppmi" store-builder)]
+      (ppmi/freq2ppmi count-lexicon ppmi-lexicon))))
+
+
+(defn ppmi-test []
+  (let [store-builder (-> (LRUCachedAPTStore$Builder.)
+                          (.setFactory ArrayAPT/factory)
+                          (.setMaxDepth 3))]
+    (with-open [count-lexicon (db/bdb-lexicon test-dir "test" store-builder)
+                ppmi-lexicon (db/bdb-lexicon test-dir "test-ppmi" store-builder)]
+      (.print (.get count-lexicon (int 741)) (.getEntityIndex count-lexicon) (.getRelationIndex count-lexicon))
+      (.print (.get ppmi-lexicon (int 741)) (.getEntityIndex ppmi-lexicon) (.getRelationIndex ppmi-lexicon))
+      )))
+
+(ppmi-test)

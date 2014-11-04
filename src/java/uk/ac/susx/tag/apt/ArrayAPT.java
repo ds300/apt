@@ -134,7 +134,8 @@ public class ArrayAPT implements APT {
 
 
     public ArrayAPT getChildAt(int... path) {
-        return getChild(path, 0);
+        if (path.length == 0) return this;
+        else return getChild(path, 0);
     }
 
     @Override
@@ -249,6 +250,11 @@ public class ArrayAPT implements APT {
         @Override
         public Integer resolve(int index) {
             return index;
+        }
+
+        @Override
+        public Iterable<Integer> getIndices() {
+            return null;
         }
     };
 

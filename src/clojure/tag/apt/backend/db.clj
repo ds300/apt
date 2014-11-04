@@ -112,13 +112,16 @@
       (getEntityIndex [this] entity-indexer)
       (getRelationIndex [this] relation-indexer)
       (getSum [this] @sum)
-      (containsKey [this k] (.containsKey store k))
-      (put [this k v] (.put store k v))
+      (containsKey [this k](.containsKey store k))
+      (put [this k v] (.remove this k) (.include this k v))
       (get [this k] (.get store k))
-      (remove [this k] (.remove store k))
+      (remove [this k]
+        (let [s (.sum (.get this k))]
+          (swap! sum - s))
+          (.remove store k))
       (include [this k v]
         (.include store k v)
-        (swap! sum inc))
+        (swap! sum + (.sum v)))
       (include [this g]
         (let [apts (.fromGraph aapt-factory g)
               ids (.entityIds g)]
