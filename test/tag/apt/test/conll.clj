@@ -158,4 +158,3 @@ nothing
       (.print (.get ppmi-lexicon (int 741)) (.getEntityIndex ppmi-lexicon) (.getRelationIndex ppmi-lexicon))
       )))
 
-(ppmi-test)

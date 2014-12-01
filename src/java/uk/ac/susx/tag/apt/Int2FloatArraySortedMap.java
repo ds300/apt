@@ -12,10 +12,10 @@ import java.util.Comparator;
  */
 public class Int2FloatArraySortedMap extends AbstractInt2FloatSortedMap {
 
-    private final int[] keys;
-    private final float[] vals;
-    private final int start;
-    private final int end;
+    final int[] keys;
+    final float[] vals;
+    final int start;
+    final int end;
 
     private static void assertSorted(int[] ks) {
         int max = Integer.MIN_VALUE;

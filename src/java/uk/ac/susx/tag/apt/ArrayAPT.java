@@ -298,7 +298,7 @@ public class ArrayAPT implements APT {
     }
 
     @Override
-    public Int2FloatSortedMap entityScores() {
+    public Int2FloatArraySortedMap entityScores() {
         return new Int2FloatArraySortedMap(entities, scores);
     }
 
@@ -339,7 +339,7 @@ public class ArrayAPT implements APT {
         return clone;
     }
 
-    private ArrayAPT ensureArrayAPT (APT thing) {
+    public static ArrayAPT ensureArrayAPT (APT thing) {
         if (thing instanceof ArrayAPT) {
             return (ArrayAPT) thing;
         } else {
@@ -504,7 +504,6 @@ public class ArrayAPT implements APT {
 
         ArrayAPT result = new ArrayAPT();
 
-        result.sum = a.sum + b.sum;
 
         final int uniqueLabels = Util.countUnique(a_entities, b_entities);
         int[] tokens = new int[uniqueLabels];
@@ -540,6 +539,9 @@ public class ArrayAPT implements APT {
 
         result.entities = tokens;
         result.scores = scores;
+
+        result.sum = 0;
+        for (float score : result.scores) result.sum += score;
 
 
         final int uniqueEdges = Util.countUnique(a_edges, b_edges);
@@ -590,6 +592,261 @@ public class ArrayAPT implements APT {
 
         result.edges = edges;
         result.kids = kids;
+
+        return result;
+    }
+
+    public static interface ScoreMerger2 {
+        Int2FloatArraySortedMap merge(ArrayAPT aptA, ArrayAPT aptB);
+    }
+    public static enum EdgeMergePolicy {
+        KEEP_UNMATCHED,
+        KEEP_LEFT_UNMATCHED,
+        KEEP_RIGHT_UNMATCHED,
+        MERGE_WITH_EMPTY,
+        DO_NOT_MERGE
+    }
+
+    public static interface FloatCombiner {
+        float combine (float a, float b);
+        float leftOnly(float a);
+        float rightOnly(float b);
+    }
+    public enum ArithmeticOperator implements FloatCombiner {
+        ADD {
+            @Override
+            public float combine (float a, float b) {
+                return a + b;
+            }
+
+            @Override
+            public float leftOnly(float a) {
+                return a;
+            }
+
+            @Override
+            public float rightOnly(float b) {
+                return b;
+            }
+        },
+        MULT {
+            @Override
+            public float combine (float a, float b) {
+                return a * b;
+            }
+
+            @Override
+            public float leftOnly(float a) {
+                return 0;
+            }
+
+            @Override
+            public float rightOnly(float b) {
+                return 0;
+            }
+        },
+        // min and max asssume positive numbers.
+        MIN {
+            @Override
+            public float combine (float a, float b) {
+                return Math.min(a, b);
+            }
+
+            @Override
+            public float leftOnly(float a) {
+                return 0;
+            }
+
+            @Override
+            public float rightOnly(float b) {
+                return 0;
+            }
+
+        },
+        MAX {
+            @Override
+            public float combine (float a, float b) {
+                return Math.max(a, b);
+            }
+
+            @Override
+            public float leftOnly(float a) {
+                return a;
+            }
+
+            @Override
+            public float rightOnly(float b) {
+                return b;
+            }
+        }
+    }
+
+    public static class ArithmeticMerger implements ScoreMerger2 {
+        private final FloatCombiner combiner;
+
+        public ArithmeticMerger(FloatCombiner combiner) {
+            this.combiner = combiner;
+        }
+
+        @Override
+        public Int2FloatArraySortedMap merge(ArrayAPT aptA, ArrayAPT aptB) {
+            final int[] a_entities = aptA.entities;
+            final int[] b_entities = aptB.entities;
+            final float[] a_scores = aptA.scores;
+            final float[] b_scores = aptB.scores;
+
+            final int uniqueLabels = Util.countUnique(a_entities, b_entities);
+            int[] tokens = new int[uniqueLabels];
+            float[] scores = new float[uniqueLabels];
+
+            int i=0, x=0, y=0;
+
+            while (x < a_entities.length && y < b_entities.length) {
+                if (a_entities[x] == b_entities[y]) {
+                    tokens[i] = a_entities[x];
+                    scores[i] = combiner.combine(a_scores[x], b_scores[y]);
+                    x++;
+                    y++;
+                } else if (a_entities[x] < b_entities[y]) {
+                    tokens[i] = a_entities[x];
+                    scores[i] = a_scores[x];
+                    x++;
+                } else {
+                    tokens[i] = b_entities[y];
+                    scores[i] = b_scores[y];
+                    y++;
+                }
+                i++;
+            }
+
+            if (x < a_entities.length) {
+                System.arraycopy(a_entities, x, tokens, i, a_entities.length - x);
+                System.arraycopy(a_scores, x, scores, i, a_entities.length - x);
+            } else if (y < b_entities.length) {
+                System.arraycopy(b_entities, y, tokens, i, b_entities.length - y);
+                System.arraycopy(b_scores, y, scores, i, b_entities.length - y);
+            }
+
+            return new Int2FloatArraySortedMap(tokens, scores);
+        }
+    }
+
+    public static ArrayAPT merge2(ArrayAPT a, ArrayAPT b, int depth, ScoreMerger2 scoreMerger, EdgeMergePolicy emp) {
+        return merge2(a, b, depth, scoreMerger, emp, 0, null);
+    }
+
+    private static ArrayAPT merge2(ArrayAPT a, ArrayAPT b, int depth, ScoreMerger2 scoreMerger, EdgeMergePolicy emp, int returnPath, ArrayAPT parent) {
+        final int[] a_edges = a.edges;
+        final int[] b_edges = b.edges;
+        final ArrayAPT[] a_kids = a.kids;
+        final ArrayAPT[] b_kids = b.kids;
+
+
+        ArrayAPT result = new ArrayAPT();
+
+        result.sum = a.sum + b.sum;
+
+        Int2FloatArraySortedMap arraySortedMap = scoreMerger.merge(a, b);
+
+        result.entities = arraySortedMap.keys;
+        result.scores = arraySortedMap.vals;
+
+        result.sum = 0;
+        for (float score : result.scores) result.sum += score;
+
+        int[] edges = new int[a_edges.length + b_edges.length];
+        ArrayAPT[] kids = new ArrayAPT[edges.length];
+
+        int i=0, // iterate over new arrays, will store their length at the end
+            x=0, // iterate over a_edges/kids
+            y=0; // iterate over b_edges/kids
+
+        while (x < a_edges.length && y < b_edges.length) {
+            int adep = a_edges[x];
+            int bdep = b_edges[y];
+            if (adep == bdep) {
+                edges[i] = adep;
+                if (adep == returnPath) {
+                    kids[i] = parent;
+                } else {
+                    kids[i] = merge2(a_kids[x], b_kids[y], depth - 1, scoreMerger, emp, -adep, result);
+                }
+                x++;
+                y++;
+                i++;
+            } else if (adep < bdep) {
+                switch (emp) {
+                    case KEEP_UNMATCHED:
+                    case KEEP_LEFT_UNMATCHED:
+                        edges[i] = adep;
+                        kids[i] = a_kids[x].copyFor(-adep, result, depth-1);
+                        i++;
+                        break;
+                    case MERGE_WITH_EMPTY:
+                        edges[i] = adep;
+                        kids[i] = merge2(a_kids[x], new ArrayAPT(), depth - 1, scoreMerger, emp, -adep, result);
+                        i++;
+                        break;
+                }
+                x++;
+            } else {
+                switch (emp) {
+                    case KEEP_UNMATCHED:
+                    case KEEP_RIGHT_UNMATCHED:
+                        edges[i] = bdep;
+                        kids[i] = b_kids[y].copyFor(-bdep, result, depth-1);
+                        i++;
+                        break;
+                    case MERGE_WITH_EMPTY:
+                        edges[i] = bdep;
+                        kids[i] = merge2(new ArrayAPT(), b_kids[y], depth-1, scoreMerger, emp, -bdep, result);
+                        i++;
+                        break;
+                }
+                y++;
+            }
+            i++;
+        }
+
+        // this isn't very DRY dave
+        while (x < a_edges.length) {
+            int adep = a_edges[x];
+            switch (emp) {
+                case KEEP_UNMATCHED:
+                case KEEP_LEFT_UNMATCHED:
+                    edges[i] = adep;
+                    kids[i] = a_kids[x].copyFor(-adep, result, depth-1);
+                    i++;
+                    break;
+                case MERGE_WITH_EMPTY:
+                    edges[i] = adep;
+                    kids[i] = merge2(a_kids[x], new ArrayAPT(), depth - 1, scoreMerger, emp, -adep, result);
+                    i++;
+                    break;
+            }
+            x++;
+        }
+
+        while (y < b_edges.length) {
+            int bdep = b_edges[y];
+            switch (emp) {
+                case KEEP_UNMATCHED:
+                case KEEP_RIGHT_UNMATCHED:
+                    edges[i] = bdep;
+                    kids[i] = b_kids[y].copyFor(-bdep, result, depth-1);
+                    i++;
+                    break;
+                case MERGE_WITH_EMPTY:
+                    edges[i] = bdep;
+                    kids[i] = merge2(new ArrayAPT(), b_kids[y], depth-1, scoreMerger, emp, -bdep, result);
+                    i++;
+                    break;
+            }
+            y++;
+        }
+
+        result.edges = Arrays.copyOf(edges, i);
+        result.kids = Arrays.copyOf(kids, i);
 
         return result;
     }
