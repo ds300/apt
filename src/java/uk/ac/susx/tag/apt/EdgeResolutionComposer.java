@@ -45,12 +45,18 @@ public class EdgeResolutionComposer implements APTComposer<ArrayAPT> {
         if (direction == Direction.BOTTOM_UP) reverseIntArray(sortedIndices);
         ArrayAPT[] result = new ArrayAPT[sortedIndices.length];
         for (int i=0; i<graph.entityIds.length; i++) {
+            System.out.println("A");
+            System.out.flush();
             result[i] = ArrayAPT.ensureArrayAPT(lexicon.get(graph.entityIds[i]));
         }
         for (int index : sortedIndices) {
+            System.out.println("BBBB");
+            System.out.flush();
             int entityId = graph.entityIds[index];
 
             for (RGraph.Relation r : graph.relations) {
+                System.out.println("CCCCCCC");
+                System.out.flush();
                 if (r.governor < 0) continue;
                 if (direction == Direction.BOTTOM_UP && graph.entityIds[r.dependent] == entityId) {
                     result[r.governor] = resolver.resolve(result[r.governor], result[r.dependent], r.type);
@@ -76,7 +82,11 @@ public class EdgeResolutionComposer implements APTComposer<ArrayAPT> {
 
     public static class NodeAlignmentEdgeResolver implements EdgeResolver {
 
-        NodeIntersectionCalculator calculator;
+        public final NodeIntersectionCalculator calculator;
+
+        public NodeAlignmentEdgeResolver(NodeIntersectionCalculator calculator) {
+            this.calculator = calculator;
+        }
 
         @Override
         public ArrayAPT resolve(ArrayAPT accumulator, ArrayAPT resolutionTarget, int resolutionEdge) {

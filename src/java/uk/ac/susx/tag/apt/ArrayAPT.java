@@ -762,6 +762,8 @@ public class ArrayAPT implements APT {
             y=0; // iterate over b_edges/kids
 
         while (x < a_edges.length && y < b_edges.length) {
+            System.out.println("DDDDDDDDDD");
+            System.out.flush();
             int adep = a_edges[x];
             int bdep = b_edges[y];
             if (adep == bdep) {
@@ -775,6 +777,60 @@ public class ArrayAPT implements APT {
                 y++;
                 i++;
             } else if (adep < bdep) {
+                if (adep == returnPath) {
+                    edges[i] = adep;
+                    kids[i] = parent;
+                    i++;
+                } else {
+                    switch (emp) {
+                        case KEEP_UNMATCHED:
+                        case KEEP_LEFT_UNMATCHED:
+                            edges[i] = adep;
+                            kids[i] = a_kids[x].copyFor(-adep, result, depth-1);
+                            i++;
+                            break;
+                        case MERGE_WITH_EMPTY:
+                            edges[i] = adep;
+                            kids[i] = merge2(a_kids[x], new ArrayAPT(), depth - 1, scoreMerger, emp, -adep, result);
+                            i++;
+                            break;
+                    }
+                }
+                x++;
+            } else {
+                if (bdep == returnPath) {
+                    edges[i] = bdep;
+                    kids[i] = parent;
+                    i++;
+                } else {
+                    switch (emp) {
+                        case KEEP_UNMATCHED:
+                        case KEEP_RIGHT_UNMATCHED:
+                            edges[i] = bdep;
+                            kids[i] = b_kids[y].copyFor(-bdep, result, depth-1);
+                            i++;
+                            break;
+                        case MERGE_WITH_EMPTY:
+                            edges[i] = bdep;
+                            kids[i] = merge2(new ArrayAPT(), b_kids[y], depth-1, scoreMerger, emp, -bdep, result);
+                            i++;
+                            break;
+                    }
+                }
+                y++;
+            }
+        }
+
+        // this isn't very DRY dave
+        while (x < a_edges.length) {
+            System.out.println("EEEEEEEEEEEEEEE");
+            System.out.flush();
+            int adep = a_edges[x];
+            if (adep == returnPath) {
+                edges[i] = adep;
+                kids[i] = parent;
+                i++;
+            } else {
                 switch (emp) {
                     case KEEP_UNMATCHED:
                     case KEEP_LEFT_UNMATCHED:
@@ -788,7 +844,18 @@ public class ArrayAPT implements APT {
                         i++;
                         break;
                 }
-                x++;
+            }
+            x++;
+        }
+
+        while (y < b_edges.length) {
+            System.out.println("FFFFFFFFFFFFFFFFFFF");
+            System.out.flush();
+            int bdep = b_edges[y];
+            if (bdep == returnPath) {
+                edges[i] = bdep;
+                kids[i] = parent;
+                i++;
             } else {
                 switch (emp) {
                     case KEEP_UNMATCHED:
@@ -803,44 +870,6 @@ public class ArrayAPT implements APT {
                         i++;
                         break;
                 }
-                y++;
-            }
-            i++;
-        }
-
-        // this isn't very DRY dave
-        while (x < a_edges.length) {
-            int adep = a_edges[x];
-            switch (emp) {
-                case KEEP_UNMATCHED:
-                case KEEP_LEFT_UNMATCHED:
-                    edges[i] = adep;
-                    kids[i] = a_kids[x].copyFor(-adep, result, depth-1);
-                    i++;
-                    break;
-                case MERGE_WITH_EMPTY:
-                    edges[i] = adep;
-                    kids[i] = merge2(a_kids[x], new ArrayAPT(), depth - 1, scoreMerger, emp, -adep, result);
-                    i++;
-                    break;
-            }
-            x++;
-        }
-
-        while (y < b_edges.length) {
-            int bdep = b_edges[y];
-            switch (emp) {
-                case KEEP_UNMATCHED:
-                case KEEP_RIGHT_UNMATCHED:
-                    edges[i] = bdep;
-                    kids[i] = b_kids[y].copyFor(-bdep, result, depth-1);
-                    i++;
-                    break;
-                case MERGE_WITH_EMPTY:
-                    edges[i] = bdep;
-                    kids[i] = merge2(new ArrayAPT(), b_kids[y], depth-1, scoreMerger, emp, -bdep, result);
-                    i++;
-                    break;
             }
             y++;
         }

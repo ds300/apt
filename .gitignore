@@ -14,3 +14,4 @@ pom.xml.asc
 /giga-conll
 /data
 *.iml
+GoogleNews-vectors-negative300.bin

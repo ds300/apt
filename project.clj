@@ -6,9 +6,16 @@
   :dependencies [[org.clojure/clojure "1.6.0"]
                  [com.google.guava/guava "16.0.1"]
                  [it.unimi.dsi/fastutil "6.5.7"]
+                 [org.deeplearning4j/deeplearning4j-nlp "0.0.3.2.5"]
                  [uk.ac.susx.mlcl/Byblo "2.1.0"]
                  [com.sleepycat/je "6.0.11"]]
   :javac-options ["-target" "1.7" "-source" "1.7" "-Xlint:-options"]
-  :repositories [["oracle" "http://download.oracle.com/maven"]]
+  :repositories [["oracle" "http://download.oracle.com/maven"]
+                 ["sonatype" {:url "http://oss.sonatype.org/content/repositories/snapshots"
+                              :snapshots true
+                              :releases false
+                              :sign-releases false
+                              :checksum :fail
+                 }]]
   :source-paths ["src/clojure"]
   :java-source-paths ["src/java"])

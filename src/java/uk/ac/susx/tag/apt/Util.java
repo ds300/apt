@@ -110,6 +110,31 @@ public class Util {
         return uniques;
     }
 
+    /**
+     * expects sorted arrays with no duplicates
+     * @param a
+     * @param b
+     * @return the number of shared numbers in the arrays
+     */
+    public static int countShared(final int[] a, final int[] b) {
+        int shared = 0;
+        int i=0, j=0;
+        for (; i < a.length && j < b.length;) {
+            int ai = a[i];
+            int bj = b[j];
+            if (ai == bj) {
+                shared++;
+                i++;
+                j++;
+            } else if (ai < bj) {
+                i++;
+            } else {
+                j++;
+            }
+        }
+        return shared;
+    }
+
     public static int read(final InputStream inputStream, final byte[] buf, final int offset, final int length) throws IOException {
         int bytesRead = 0;
         int n = 0;
