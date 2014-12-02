@@ -762,8 +762,6 @@ public class ArrayAPT implements APT {
             y=0; // iterate over b_edges/kids
 
         while (x < a_edges.length && y < b_edges.length) {
-            System.out.println("DDDDDDDDDD");
-            System.out.flush();
             int adep = a_edges[x];
             int bdep = b_edges[y];
             if (adep == bdep) {
@@ -823,8 +821,6 @@ public class ArrayAPT implements APT {
 
         // this isn't very DRY dave
         while (x < a_edges.length) {
-            System.out.println("EEEEEEEEEEEEEEE");
-            System.out.flush();
             int adep = a_edges[x];
             if (adep == returnPath) {
                 edges[i] = adep;
@@ -849,8 +845,6 @@ public class ArrayAPT implements APT {
         }
 
         while (y < b_edges.length) {
-            System.out.println("FFFFFFFFFFFFFFFFFFF");
-            System.out.flush();
             int bdep = b_edges[y];
             if (bdep == returnPath) {
                 edges[i] = bdep;

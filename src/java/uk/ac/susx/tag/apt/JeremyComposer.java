@@ -60,8 +60,6 @@ public class JeremyComposer extends EdgeResolutionComposer {
 
 
                     for (int interval = 0; interval < alpha_intervals; interval ++) {
-                        System.out.println("GGGGGGGGGGGGGGGGGGGGGGGGG");
-                        System.out.flush();
                         float alpha_a = alpha_from + (((alpha_to - alpha_from) / alpha_intervals) * interval);
                         float alpha_b = 1 - alpha_a;
 
@@ -72,8 +70,6 @@ public class JeremyComposer extends EdgeResolutionComposer {
                         int i=0, j=0, k=0;
 
                         while (i < keys_a.length && j < keys_b.length) {
-                            System.out.println("HHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHH");
-                            System.out.flush();
                             int keya = keys_a[i];
                             int keyb = keys_b[j];
                             if (keya == keyb) {
@@ -94,16 +90,12 @@ public class JeremyComposer extends EdgeResolutionComposer {
                         }
 
                         while (i < keys_a.length) {
-                            System.out.println("IIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIII");
-                            System.out.flush();
                             keys[k] = keys_a[i];
                             vals[k] = vals_a[i] * alpha_a;
                             i++;
                             k++;
                         }
                         while (j < keys_b.length) {
-                            System.out.println("JJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJ");
-                            System.out.flush();
                             keys[k] = keys_b[j];
                             vals[k] = vals_b[j] * alpha_b;
                             j++;
@@ -118,6 +110,8 @@ public class JeremyComposer extends EdgeResolutionComposer {
                             best_vals = vals;
                         }
                     }
+
+                    System.out.println("best alpha: " + best_alpha);
 
                     return new Int2FloatArraySortedMap(best_keys, best_vals);
                 }
