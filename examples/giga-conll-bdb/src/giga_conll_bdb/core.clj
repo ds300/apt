@@ -2,7 +2,7 @@
   (:gen-class)
   (:import [uk.ac.susx.tag.apt AccumulativeAPTStore$Builder RGraph]
            [com.sleepycat.je EnvironmentConfig])
-  (:require [tag.apt.backend.db :refer [bdb-lexicon *env-config* *use-compression*]]
+  (:require [tag.apt.backend.bdb :refer [bdb-lexicon *env-config* *use-compression*]]
             [tag.apt.util :refer [gz-reader pmapall]]
             [tag.apt.conll :refer [parse]]
             [clojure.java.io :as io]

@@ -5,7 +5,7 @@
            (uk.ac.susx.tag.apt AccumulativeAPTStore)
            (java.util.zip GZIPInputStream))
   (:require [tag.apt.conll :refer [parse]]
-            [tag.apt.backend.db :as db])
+            [tag.apt.backend.bdb :as db])
   (:require [clojure.test :refer :all]
             [tag.apt.ppmi :as ppmi]
             [tag.apt.util :refer [pmapall-chunked]]

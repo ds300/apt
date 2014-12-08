@@ -1,4 +1,4 @@
-(ns tag.apt.backend.db
+(ns tag.apt.backend.bdb
   (:import (com.sleepycat.je Environment EnvironmentConfig Database DatabaseConfig DatabaseEntry OperationStatus)
            (uk.ac.susx.tag.apt PersistentKVStore APTStoreBuilder DistributionalLexicon ArrayAPT ArrayAPT$Factory RGraph)
            (uk.ac.susx.tag.apt Util)

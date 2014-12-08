@@ -2,7 +2,7 @@
   (:import (uk.ac.susx.tag.apt DistributionalLexicon JeremyComposer$Builder))
   (:require [clojure.test :refer [deftest]]
             [tag.apt.test.data :refer [graphs]]
-            [tag.apt.backend.db :refer [bdb-lexicon]])
+            [tag.apt.backend.bdb :refer [bdb-lexicon]])
   (:import (uk.ac.susx.tag.apt DistributionalLexicon JeremyComposer$Builder ArrayAPT LRUCachedAPTStore$Builder)))
 
 (def composer (-> (JeremyComposer$Builder.)
