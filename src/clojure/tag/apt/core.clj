@@ -107,3 +107,17 @@
        :else
          (throw (IllegalArgumentException. (str "Invalid agument type: " (type init))))))))
 
+
+(defn path-counter
+  ([] (path-counter {}))
+  ([init]
+   (let [state (atom init)]
+     (reify
+       IFn
+       (invoke [this path]
+         (get-in @state path))
+       (invoke [this path n]
+         (swap! state update-in path + n))
+       IDeref
+       (deref [this]
+         @state)))))

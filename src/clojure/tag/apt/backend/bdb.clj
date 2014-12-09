@@ -7,6 +7,7 @@
            (java.util.zip GZIPOutputStream GZIPInputStream))
   (:require [clojure.java.io :as io]
             [clojure.edn]
+            [tag.apt.backend :as b]
             [tag.apt.util :as util]
             [tag.apt.core :as core])
   )
@@ -70,45 +71,26 @@
           (.close env))))))
 
 
-(defn get-indexer-map [file]
-  (if (.exists file)
-    (with-open [in (util/gz-reader file)]
-      (into {} (for [line (keep not-empty (line-seq in))
-                     :let [[entity idx] (.split line "\t")]]
-                 [entity (Long. idx)])))
-    {}))
-
-(defn put-indexer-map [file map]
-  (with-open [out ^Writer (util/gz-writer file)]
-    (doseq [[k v] map]
-      (.write out (str k "\t" v "\n")))))
-
 (def entity-index-filename "entity-index.tsv.gz")
 (def relation-index-filename "relation-index.tsv.gz")
 (def sum-filename "sum.int")
 
-(defn get-sum [file]
-  (if (.exists file)
-    (clojure.edn/read-string (slurp file))
-    0))
 
-(defn put-sum [file sum]
-  (spit file (str sum)))
 
 (def aapt-factory (ArrayAPT$Factory.))
 
 (defn bdb-lexicon [dir dbname ^APTStoreBuilder store-builder]
   (let [dir (io/as-file dir)
         store (-> store-builder (.setBackend (db-byte-store dir dbname)) (.build))
-        entity-indexer (core/indexer (get-indexer-map (File. dir entity-index-filename)))
-        relation-indexer (core/relation-indexer (get-indexer-map (File. dir relation-index-filename)))
-        sum (atom (get-sum (File. dir sum-filename)))]
+        entity-indexer (core/indexer (b/get-indexer-map (File. dir entity-index-filename)))
+        relation-indexer (core/relation-indexer (b/get-indexer-map (File. dir relation-index-filename)))
+        sum (atom (b/get-sum (File. dir sum-filename)))]
     (reify DistributionalLexicon
       (close [this]
         (.close store)
-        (put-sum (File. dir sum-filename) @sum)
-        (put-indexer-map (File. dir entity-index-filename) @entity-indexer)
-        (put-indexer-map (File. dir relation-index-filename) @relation-indexer))
+        (b/put-sum (File. dir sum-filename) @sum)
+        (b/put-indexer-map (File. dir entity-index-filename) @entity-indexer)
+        (b/put-indexer-map (File. dir relation-index-filename) @relation-indexer))
       (getEntityIndex [this] entity-indexer)
       (getRelationIndex [this] relation-indexer)
       (getSum [this] @sum)
@@ -126,6 +108,5 @@
         (let [apts (.fromGraph aapt-factory g)
               ids (.entityIds g)]
           (dotimes [n (alength apts)]
-            (if-let [apt (aget apts n)]
-              (.include store (aget ids n) apt)
-              (swap! sum inc))))))))
+            (when-let [apt (aget apts n)]
+              (.include this (aget ids n) apt))))))))
