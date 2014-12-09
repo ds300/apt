@@ -81,12 +81,18 @@
                      (reset! acc (conj! @acc [path (.sum apt)]))))))
     (persistent! @acc)))
 
+(defprotocol PathCounted
+  (path-count [this path]))
+
 (defn path-counting-lexicon
   ([dir store-builder] (path-counting-lexicon dir store-builder (*get-default-options*)))
   ([dir store-builder options]
     (let [lex (lexicon dir store-builder options)
           path-counter (apt/path-counter (b/read-edn-or (b/file dir *path-counts-filename*) {}))]
-      (reify DistributionalLexicon
+      (reify
+        PathCounted
+        (path-count [this path] (path-counter path))
+        DistributionalLexicon
         (close [this]
           (.close lex)
           (b/put-edn (b/file dir *path-counts-filename*) @path-counter))

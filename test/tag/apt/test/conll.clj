@@ -5,7 +5,8 @@
            (uk.ac.susx.tag.apt AccumulativeAPTStore)
            (java.util.zip GZIPInputStream))
   (:require [tag.apt.conll :refer [parse]]
-            [tag.apt.backend.bdb :as db])
+            [tag.apt.backend.bdb :as db]
+            [tag.apt.backend.leveldb :as leveldb])
   (:require [clojure.test :refer :all]
             [tag.apt.ppmi :as ppmi]
             [tag.apt.util :refer [pmapall-chunked]]
@@ -103,12 +104,13 @@ nothing
                             (InputStreamReader. "utf-8")
                             BufferedReader.)]
       (dorun
-        (pmapall-chunked 20
+        (pmapall-chunked 100
                          (fn [sent] (.include lexicon (to-graph tkn-index dep-index sent)))
                          (parse in))))))
 
 (def test-dir (io/as-file "data"))
 (def test-data-file (io/as-file "giga-conll/nyt_cna_eng_201012conll.gz"))
+
 
 (defn do-berkeley-test []
   (when (.exists test-dir)
@@ -116,6 +118,26 @@ nothing
   (.mkdirs test-dir)
   (let [store-builder (.setMaxDepth (AccumulativeAPTStore$Builder.) 3)]
     (with-open [lexicon ^DistributionalLexicon (db/bdb-lexicon test-dir "test" store-builder)
+                in      (-> "giga-conll/nyt_cna_eng_201012conll.gz"
+                            FileInputStream.
+                            GZIPInputStream.
+                            (InputStreamReader. "utf-8")
+                            BufferedReader.)]
+      (let [tkn-index (.getEntityIndex lexicon)
+            dep-index (.getRelationIndex lexicon)]
+        (dorun
+          (pmapall-chunked 20
+                           (fn [sent] (.include lexicon (to-graph tkn-index dep-index sent)))
+                           (parse in))))
+      lexicon)))
+
+
+(defn do-path-counted-test []
+  (when (.exists test-dir)
+    (util/recursive-delete test-dir))
+  (.mkdirs test-dir)
+  (let [store-builder (.setMaxDepth (AccumulativeAPTStore$Builder.) 3)]
+    (with-open [lexicon ^DistributionalLexicon (leveldb/path-counting-lexicon test-dir store-builder)
                 in      (-> "giga-conll/nyt_cna_eng_201012conll.gz"
                             FileInputStream.
                             GZIPInputStream.
@@ -138,6 +160,13 @@ nothing
   (if (.exists test-data-file)
     (binding [db/*use-compression* true] (do-berkeley-test))
     (println "WARNING: test file '" (.getAbsolutePath test-data-file) "' not found, skipping berkeley-test")))
+
+
+(deftest path-counted-test
+  (if (.exists test-data-file)
+    (do-path-counted-test)
+    (println "WARNING: test file '" (.getAbsolutePath test-data-file) "' not found, skipping berkeley-test")))
+
 
 (defn blahtest []
   (let [store-builder (-> (LRUCachedAPTStore$Builder.)

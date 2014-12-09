@@ -91,7 +91,7 @@ public class EdgeResolutionComposer implements APTComposer<ArrayAPT> {
             if (a != null && b != null) {
                 return ArrayAPT.merge2(a, b, Integer.MAX_VALUE, new ArrayAPT.ScoreMerger2() {
                     @Override
-                    public Int2FloatArraySortedMap merge(ArrayAPT aptA, ArrayAPT aptB) {
+                    public Int2FloatArraySortedMap merge(ArrayAPT aptA, ArrayAPT aptB, int[] path) {
                         return calculator.intersect(aptA.entityScores(), aptB.entityScores());
                     }
                 }, ArrayAPT.EdgeMergePolicy.MERGE_WITH_EMPTY);

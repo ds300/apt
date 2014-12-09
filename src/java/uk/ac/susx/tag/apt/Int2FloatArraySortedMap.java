@@ -307,4 +307,12 @@ public class Int2FloatArraySortedMap extends AbstractInt2FloatSortedMap {
     public int size() {
         return end-start;
     }
+
+    public int[] keys() {
+        return Arrays.copyOf(keys, keys.length);
+    }
+
+    public float[] vals() {
+        return Arrays.copyOf(vals, vals.length);
+    }
 }

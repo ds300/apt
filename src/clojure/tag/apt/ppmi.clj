@@ -1,5 +1,7 @@
 (ns tag.apt.ppmi
-  (:import (uk.ac.susx.tag.apt APTFactory APTVisitor))
+  (:require [tag.apt.backend.leveldb :refer [path-count]])
+  (:import (uk.ac.susx.tag.apt APTFactory APTVisitor ArrayAPT$ScoreMerger2 ArrayAPT$EdgeMergePolicy
+                               Int2FloatArraySortedMap))
   (:import (uk.ac.susx.tag.apt DistributionalLexicon BidirectionalIndexer APT ArrayAPT APTFactory)))
 
 (defn from-path [apt [r & more :as path]]
@@ -41,4 +43,35 @@
         (.include output-lexicon e @ppmi-root-apt)))))
 
 
-
+; log (
+;     / P(w->p->w') \       ; just the entity count at the node
+;    |  -----------  |
+;     \ P(w->p->*)  /       ; just the sum of the node
+;   -------------------
+;     / P(*->p->w') \       ; reverse trick i.e. P(*->p->w') === P(w'->r->*) where r is p reversed.
+;    |  -----------  |
+;     \ P(*->p->*)  /       ; use path-counts shim
+; )
+(defn freq2ppmi:good [^DistributionalLexicon input-lexicon ^DistributionalLexicon output-lexicon]
+  (let [total-count (.getSum input-lexicon)
+        entities (map int (.getIndices (.getEntityIndex input-lexicon)))]
+    (doseq [w entities]
+      (let [w-apt (.get input-lexicon w)
+            w-ppmi-apt (ArrayAPT/merge2 w-apt
+                                      (.empty ArrayAPT/factory)
+                                      Integer/MAX_VALUE
+                                      (reify ArrayAPT$ScoreMerger2
+                                        (merge [_ apt _ p]
+                                          (let [s (.sum apt)
+                                                count:*->p->* (path-count input-lexicon p)
+                                                scores (.entityScores apt)
+                                                newvals (float-array (for [[w' n] (seq (.entrySet scores))]
+                                                                     (let [count:w'->r->* (-> (.get input-lexicon w')
+                                                                                              (.getChildAt (reverse-path p))
+                                                                                              .sum)
+                                                                           numerator (/ n s)
+                                                                           denomintator (/ count:w'->r->* count:*->p->*)]
+                                                                       (double (/ numerator denomintator)))))]
+                                            (Int2FloatArraySortedMap. (.keys scores) newvals))))
+                                      (ArrayAPT$EdgeMergePolicy/MERGE_WITH_EMPTY))]
+        (.include output-lexicon w w-ppmi-apt)))))

@@ -107,17 +107,22 @@
        :else
          (throw (IllegalArgumentException. (str "Invalid agument type: " (type init))))))))
 
+(defn- -ensure-vector [a-or-v]
+  (if (vector? a-or-v)
+    a-or-v
+    (into [] a-or-v)))
 
 (defn path-counter
   ([] (path-counter {}))
   ([init]
+   (when-not (map? init) (throw (Exception. "path counter init value should be a map")))
    (let [state (atom init)]
      (reify
        IFn
        (invoke [this path]
-         (get-in @state path))
+         (@state (-ensure-vector path)))
        (invoke [this path n]
-         (swap! state update-in path + n))
+         (swap! state update-in [(-ensure-vector path)] (fnil + 0) n))
        IDeref
        (deref [this]
          @state)))))

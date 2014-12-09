@@ -312,7 +312,7 @@ public class ArrayAPT implements APT {
         walk(visitor, new int[0], 0);
     }
 
-    private int[] append(int[] a, int x) {
+    private static int[] append(int[] a, int x) {
         int[] res = new int[a.length+1];
         System.arraycopy(a,0,res,0,a.length);
         res[a.length] = x;
@@ -597,7 +597,7 @@ public class ArrayAPT implements APT {
     }
 
     public static interface ScoreMerger2 {
-        Int2FloatArraySortedMap merge(ArrayAPT aptA, ArrayAPT aptB);
+        Int2FloatArraySortedMap merge(ArrayAPT aptA, ArrayAPT aptB, int[] path);
     }
     public static enum EdgeMergePolicy {
         KEEP_UNMATCHED,
@@ -689,7 +689,7 @@ public class ArrayAPT implements APT {
         }
 
         @Override
-        public Int2FloatArraySortedMap merge(ArrayAPT aptA, ArrayAPT aptB) {
+        public Int2FloatArraySortedMap merge(ArrayAPT aptA, ArrayAPT aptB, int[] path) {
             final int[] a_entities = aptA.entities;
             final int[] b_entities = aptB.entities;
             final float[] a_scores = aptA.scores;
@@ -732,10 +732,11 @@ public class ArrayAPT implements APT {
     }
 
     public static ArrayAPT merge2(ArrayAPT a, ArrayAPT b, int depth, ScoreMerger2 scoreMerger, EdgeMergePolicy emp) {
-        return merge2(a, b, depth, scoreMerger, emp, 0, null);
+        return merge2(a, b, depth, scoreMerger, emp, new int[]{}, null);
     }
 
-    private static ArrayAPT merge2(ArrayAPT a, ArrayAPT b, int depth, ScoreMerger2 scoreMerger, EdgeMergePolicy emp, int returnPath, ArrayAPT parent) {
+    private static ArrayAPT merge2(ArrayAPT a, ArrayAPT b, int depth, ScoreMerger2 scoreMerger, EdgeMergePolicy emp, int[] path, ArrayAPT parent) {
+        int returnPath = path.length > 0 ? -path[path.length-1] : 0;
         final int[] a_edges = a.edges;
         final int[] b_edges = b.edges;
         final ArrayAPT[] a_kids = a.kids;
@@ -746,7 +747,7 @@ public class ArrayAPT implements APT {
 
         result.sum = a.sum + b.sum;
 
-        Int2FloatArraySortedMap arraySortedMap = scoreMerger.merge(a, b);
+        Int2FloatArraySortedMap arraySortedMap = scoreMerger.merge(a, b, path);
 
         result.entities = arraySortedMap.keys;
         result.scores = arraySortedMap.vals;
@@ -769,7 +770,7 @@ public class ArrayAPT implements APT {
                 if (adep == returnPath) {
                     kids[i] = parent;
                 } else {
-                    kids[i] = merge2(a_kids[x], b_kids[y], depth - 1, scoreMerger, emp, -adep, result);
+                    kids[i] = merge2(a_kids[x], b_kids[y], depth - 1, scoreMerger, emp, append(path, adep), result);
                 }
                 x++;
                 y++;
@@ -789,7 +790,7 @@ public class ArrayAPT implements APT {
                             break;
                         case MERGE_WITH_EMPTY:
                             edges[i] = adep;
-                            kids[i] = merge2(a_kids[x], new ArrayAPT(), depth - 1, scoreMerger, emp, -adep, result);
+                            kids[i] = merge2(a_kids[x], new ArrayAPT(), depth - 1, scoreMerger, emp, append(path, adep), result);
                             i++;
                             break;
                     }
@@ -810,7 +811,7 @@ public class ArrayAPT implements APT {
                             break;
                         case MERGE_WITH_EMPTY:
                             edges[i] = bdep;
-                            kids[i] = merge2(new ArrayAPT(), b_kids[y], depth-1, scoreMerger, emp, -bdep, result);
+                            kids[i] = merge2(new ArrayAPT(), b_kids[y], depth-1, scoreMerger, emp, append(path, bdep), result);
                             i++;
                             break;
                     }
@@ -836,7 +837,7 @@ public class ArrayAPT implements APT {
                         break;
                     case MERGE_WITH_EMPTY:
                         edges[i] = adep;
-                        kids[i] = merge2(a_kids[x], new ArrayAPT(), depth - 1, scoreMerger, emp, -adep, result);
+                        kids[i] = merge2(a_kids[x], new ArrayAPT(), depth - 1, scoreMerger, emp, append(path, adep), result);
                         i++;
                         break;
                 }
@@ -860,7 +861,7 @@ public class ArrayAPT implements APT {
                         break;
                     case MERGE_WITH_EMPTY:
                         edges[i] = bdep;
-                        kids[i] = merge2(new ArrayAPT(), b_kids[y], depth-1, scoreMerger, emp, -bdep, result);
+                        kids[i] = merge2(new ArrayAPT(), b_kids[y], depth-1, scoreMerger, emp, append(path, bdep), result);
                         i++;
                         break;
                 }
