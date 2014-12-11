@@ -1,7 +1,8 @@
 (ns tag.apt.util
-  (:import (java.io FileInputStream FileOutputStream BufferedInputStream BufferedOutputStream)
+  (:import (java.io FileInputStream FileOutputStream BufferedInputStream BufferedOutputStream File)
            (java.util.zip GZIPInputStream GZIPOutputStream)
-           (clojure.lang IDeref))
+           (clojure.lang IDeref)
+           (java.nio.channels FileChannel))
   (:require [clojure.java.io :as io]))
 
 (defn pmapall
@@ -38,7 +39,25 @@
     (-> file io/as-file (FileOutputStream.) (BufferedOutputStream. bufsz) (GZIPOutputStream.) io/writer)))
 
 
+(defn- copy-file [^File from ^File to]
+  (with-open [in (.getChannel (FileInputStream. from))
+              out ^FileChannel (.getChannel (FileOutputStream. to))]
+    (let [size (.size in)]
+      (loop [offset 0]
+        (prn offset size)
+        (when (< offset size)
+          (recur (+ offset (.transferFrom out in offset (- size offset)))))))))
 
+(defn copy [^File from ^File to &{overwrite :overwrite :or {:overwrite true}}]
+  (assert (.exists from) "can't copy nonexistent file bro")
+  (if (.isDirectory from)
+    (do
+      (.mkdirs to)
+      (doseq [child (.listFiles from)]
+        (let [new-child (File. to (.getName child))]
+          (copy child new-child))))
+    (when (or overwrite (not (.exists to)))
+      (copy-file from to))))
 
 (defmacro lazy [& body]
   "returns a derefable object which, when dereferenced, evaluates body, then stores and returns
