@@ -1,5 +1,6 @@
 (ns tag.apt.util
-  (:import (java.io FileInputStream FileOutputStream BufferedInputStream BufferedOutputStream File)
+  (:import (java.io FileInputStream FileOutputStream BufferedInputStream BufferedOutputStream File ByteArrayOutputStream
+                    ByteArrayInputStream)
            (java.util.zip GZIPInputStream GZIPOutputStream)
            (clojure.lang IDeref)
            (java.nio.channels FileChannel))
@@ -39,7 +40,9 @@
     (-> file io/as-file (FileOutputStream.) (BufferedOutputStream. bufsz) (GZIPOutputStream.) io/writer)))
 
 
-(defn- copy-file [^File from ^File to]
+(defn- copy-file
+  "assumes `from` is a readable file that exists"
+  [^File from ^File to]
   (with-open [in (.getChannel (FileInputStream. from))
               out ^FileChannel (.getChannel (FileOutputStream. to))]
     (let [size (.size in)]
@@ -48,16 +51,18 @@
         (when (< offset size)
           (recur (+ offset (.transferFrom out in offset (- size offset)))))))))
 
-(defn copy [^File from ^File to &{overwrite :overwrite :or {:overwrite true}}]
-  (assert (.exists from) "can't copy nonexistent file bro")
-  (if (.isDirectory from)
+(defn copy
+  "copies a file or folder from src to dst"
+  [^File src ^File dst &{overwrite :overwrite :or {:overwrite true}}]
+  (assert (.exists src) "can't copy nonexistent file bro")
+  (if (.isDirectory src)
     (do
-      (.mkdirs to)
-      (doseq [child (.listFiles from)]
-        (let [new-child (File. to (.getName child))]
+      (.mkdirs dst)
+      (doseq [child (.listFiles src)]
+        (let [new-child (File. dst (.getName child))]
           (copy child new-child))))
-    (when (or overwrite (not (.exists to)))
-      (copy-file from to))))
+    (when (or overwrite (not (.exists dst)))
+      (copy-file src dst))))
 
 (defmacro lazy [& body]
   "returns a derefable object which, when dereferenced, evaluates body, then stores and returns
@@ -70,3 +75,25 @@
              (if (identical? val# ::unresolved)
                (reset! state# (do ~@body))
                val#)))))))
+
+(defn compress
+  "compresses a byte array using simple gzip, returning the compressed byte array."
+  [^bytes bytes]
+  (let [out (ByteArrayOutputStream. (alength bytes))]
+    (doto (GZIPOutputStream. out)
+      (.write bytes)
+      (.flush)
+      (.close))
+    (.toByteArray out)))
+
+(defn decompress
+  "decompresses a gzipped byte array, returning the decompressed byte array"
+  [^bytes bytes]
+  (let [in (GZIPInputStream. (ByteArrayInputStream. bytes))
+        out (ByteArrayOutputStream.)
+        buf (byte-array 1024)]
+    (loop [numBytes (.read in buf)]
+      (when (> numBytes -1)
+        (.write out buf 0 numBytes)
+        (recur (.read in buf))))
+    (.toByteArray out)))

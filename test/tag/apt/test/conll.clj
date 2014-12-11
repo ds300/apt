@@ -109,6 +109,7 @@ nothing
                          (parse in))))))
 
 (def test-dir (io/as-file "data"))
+(def test-ppmi-dir (io/as-file "data-ppmi"))
 (def test-data-file (io/as-file "giga-conll/nyt_cna_eng_201012conll.gz"))
 
 
@@ -132,12 +133,12 @@ nothing
       lexicon)))
 
 
-(defn do-path-counted-test []
+(defn do-leveldb-test []
   (when (.exists test-dir)
     (util/recursive-delete test-dir))
   (.mkdirs test-dir)
   (let [store-builder (.setMaxDepth (AccumulativeAPTStore$Builder.) 3)]
-    (with-open [lexicon ^DistributionalLexicon (leveldb/path-counting-lexicon test-dir store-builder)
+    (with-open [lexicon ^DistributionalLexicon (leveldb/lexicon test-dir store-builder)
                 in      (-> "giga-conll/nyt_cna_eng_201012conll.gz"
                             FileInputStream.
                             GZIPInputStream.
@@ -162,9 +163,9 @@ nothing
     (println "WARNING: test file '" (.getAbsolutePath test-data-file) "' not found, skipping berkeley-test")))
 
 
-(deftest path-counted-test
+(deftest leveldb-test
   (if (.exists test-data-file)
-    (do-path-counted-test)
+    (do-leveldb-test)
     (println "WARNING: test file '" (.getAbsolutePath test-data-file) "' not found, skipping berkeley-test")))
 
 
@@ -178,12 +179,25 @@ nothing
 
 
 (defn ppmi-test []
+  ;(when (.exists test-ppmi-dir)
+  ;  (util/recursive-delete test-ppmi-dir))
+  ;(.mkdirs test-ppmi-dir)
   (let [store-builder (-> (LRUCachedAPTStore$Builder.)
                           (.setFactory ArrayAPT/factory)
+                          (.setMaxDepth 3))
+        store-builder2 (-> (LRUCachedAPTStore$Builder.)
+                          (.setFactory ArrayAPT/factory)
                           (.setMaxDepth 3))]
-    (with-open [count-lexicon (db/bdb-lexicon test-dir "test" store-builder)
-                ppmi-lexicon (db/bdb-lexicon test-dir "test-ppmi" store-builder)]
+    (with-open [
+                count-lexicon (leveldb/lexicon test-dir store-builder)
+                ppmi-lexicon (leveldb/lexicon test-ppmi-dir store-builder2)
+                ]
+      (ppmi/freq2ppmi:good count-lexicon ppmi-lexicon (ppmi/count-paths count-lexicon))
+
+
       (.print (.get count-lexicon (int 741)) (.getEntityIndex count-lexicon) (.getRelationIndex count-lexicon))
       (.print (.get ppmi-lexicon (int 741)) (.getEntityIndex ppmi-lexicon) (.getRelationIndex ppmi-lexicon))
       )))
 
+
+(ppmi-test)
