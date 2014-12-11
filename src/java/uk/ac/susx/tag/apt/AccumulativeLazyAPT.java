@@ -11,6 +11,8 @@ import java.util.Arrays;
  */
 public class AccumulativeLazyAPT implements APT {
 
+    static class FrozenException extends Exception {}
+
     static class Factory implements APTFactory<AccumulativeLazyAPT> {
 
         @Override

@@ -40,7 +40,7 @@ public class EdgeResolutionComposer implements APTComposer<ArrayAPT> {
     }
 
     @Override
-    public ArrayAPT[] compose(DistributionalLexicon<?, ?, APT> lexicon, RGraph graph) throws IOException {
+    public ArrayAPT[] compose(PersistentKVStore<Integer, APT> lexicon, RGraph graph) throws IOException {
         int[] sortedIndices = graph.sorted();
         if (direction == Direction.BOTTOM_UP) reverseIntArray(sortedIndices);
         ArrayAPT[] result = new ArrayAPT[sortedIndices.length];

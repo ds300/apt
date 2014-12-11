@@ -6,5 +6,5 @@ import java.io.IOException;
  * @author ds300
  */
 public interface APTComposer<T extends APT> {
-    T[] compose(DistributionalLexicon<?, ?, APT> lexicon, RGraph graph) throws IOException;
+    T[] compose(PersistentKVStore<Integer, APT> lexicon, RGraph graph) throws IOException;
 }

@@ -14,9 +14,11 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 
 /**
+ * Write only, accumulative APTStore, highly optimised for dealing with *big* data.
  * @author ds300
  */
-public class AccumulativeAPTStore implements APTStore<AccumulativeLazyAPT> {
+public class AccumulativeAPTStore implements AutoCloseable {
+
 
     // immutable map from Integer -> AccumulativeLazyAPT
     private APersistentMap cache = PersistentHashMap.EMPTY;
@@ -28,8 +30,6 @@ public class AccumulativeAPTStore implements APTStore<AccumulativeLazyAPT> {
     private final PersistentKVStore<Integer, byte[]> backend;
 
     final APTFactory<AccumulativeLazyAPT> factory = new AccumulativeLazyAPT.Factory();
-
-    final ArrayAPT.Factory aaptFactory = new ArrayAPT.Factory();
 
     // merge depth for incoming APTs
     final int depth;
@@ -70,7 +70,6 @@ public class AccumulativeAPTStore implements APTStore<AccumulativeLazyAPT> {
         this.backend = backend;
         this.depth = depth;
     }
-
 
     private class PutTask implements Runnable {
         final int k;
@@ -127,7 +126,6 @@ public class AccumulativeAPTStore implements APTStore<AccumulativeLazyAPT> {
         }
     }
 
-
     // synchronized puts into cache rather than CAS. Seems to be faster.
     private synchronized AccumulativeLazyAPT putCached(int key, AccumulativeLazyAPT apt) throws IOException {
         Object existing = cache.valAt(key);
@@ -139,34 +137,13 @@ public class AccumulativeAPTStore implements APTStore<AccumulativeLazyAPT> {
         return apt;
     }
 
-
-
-
-
-    @Override
     public void include(int entityID, APT apt) throws IOException {
         assertNotClosed();
         for (;;) {
             try {
                 getCached(entityID).merge(apt, depth, 0);
                 return;
-            } catch (FrozenException ignored) {
-                System.out.println("frozed");
-            }
-        }
-    }
-
-
-
-    public void include(RGraph graph) throws IOException {
-        assertNotClosed();
-        ArrayAPT[] apts = aaptFactory.fromGraph(graph);
-        for (int i=0; i<apts.length; i++) {
-            ArrayAPT apt = apts[i];
-            int eid = graph.entityIds[i];
-            if (apt != null && eid != -1) {
-                include(eid, apt);
-            }
+            } catch (AccumulativeLazyAPT.FrozenException ignored) {}
         }
     }
 
@@ -176,33 +153,6 @@ public class AccumulativeAPTStore implements APTStore<AccumulativeLazyAPT> {
         memoryFullThreshold = d;
         return this;
     }
-
-
-    @Override
-    @Deprecated
-    public AccumulativeLazyAPT get(Integer entityID) {
-        throw new UnsupportedOperationException();
-    }
-
-    @Override
-    @Deprecated
-    public void put(Integer entityId, AccumulativeLazyAPT apt) {
-        throw new UnsupportedOperationException();
-    }
-
-    @Override
-    @Deprecated
-    public void remove(Integer entityID) {
-        throw new UnsupportedOperationException();
-    }
-
-    @Override
-    @Deprecated
-    public boolean containsKey(Integer entityID) throws IOException {
-        throw new UnsupportedOperationException();
-    }
-
-
 
     private void assertNotClosed() {
         if (closed) throw new IllegalStateException("Attempting to use lexicon after close");
@@ -218,34 +168,6 @@ public class AccumulativeAPTStore implements APTStore<AccumulativeLazyAPT> {
             memoryWatcher.join();
         } catch (InterruptedException e) {
             e.printStackTrace();
-        }
-    }
-
-    public static class Builder implements APTStoreBuilder<AccumulativeLazyAPT> {
-
-        PersistentKVStore<Integer, byte[]> backend;
-        int depth;
-
-        @Override
-        public APTStoreBuilder setBackend(PersistentKVStore<Integer, byte[]> backend) {
-            this.backend = backend;
-            return this;
-        }
-
-        @Override
-        public APTStoreBuilder setFactory(APTFactory<AccumulativeLazyAPT> factory) {
-            throw new UnsupportedOperationException("AccumulativeAPTStore supplies it's own factory");
-        }
-
-        public APTStoreBuilder setMaxDepth(int depth) {
-            this.depth = depth;
-            return this;
-        }
-
-        @Override
-        public APTStore<AccumulativeLazyAPT> build() {
-            if (backend == null) throw new UnsupportedOperationException("AccumulativeAPTStore requires a backend");
-            else return new AccumulativeAPTStore(backend, depth);
         }
     }
 }
