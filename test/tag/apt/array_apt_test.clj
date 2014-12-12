@@ -1,4 +1,4 @@
-(ns tag.apt.test.array-apt
+(ns tag.apt.test.array-apt-test
   (:import (uk.ac.susx.tag.apt ArrayAPT APTFactory APT RGraph)
            (java.io ByteArrayOutputStream ByteArrayInputStream))
   (:require [tag.apt.test.data :as data]

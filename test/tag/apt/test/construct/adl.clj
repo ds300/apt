@@ -4,7 +4,7 @@
            (java.util Arrays))
   (:require [clojure.test :refer :all]
             [tag.apt.test.data :as data]
-            [tag.apt.test.array-apt :as aapt]
+            [tag.apt.test.array-apt-test :as aapt]
             [tag.apt.test.util :as util]))
 
 

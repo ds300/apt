@@ -80,7 +80,18 @@ public class LRUCachedAPTStore<T extends APT> implements PersistentKVStore<Integ
 
 
     @Override
-    public void remove(Integer entityID) throws IOException {
+    public synchronized boolean atomicCAS(Integer key, T expected, T value) throws IOException {
+        T existing = get(key);
+        if (existing.equals(expected)) {
+            put(key, value);
+            return true;
+        } else {
+            return false;
+        }
+    }
+
+    @Override
+    public synchronized void remove(Integer entityID) throws IOException {
         trees.invalidate(entityID);
         backend.remove(entityID);
     }
@@ -91,7 +102,7 @@ public class LRUCachedAPTStore<T extends APT> implements PersistentKVStore<Integ
     }
 
     @Override
-    public void put(Integer entityID, APT apt) throws IOException {
+    public synchronized void put(Integer entityID, APT apt) throws IOException {
         trees.put(entityID, (T) factory.empty().merged(apt, Integer.MAX_VALUE));
     }
 

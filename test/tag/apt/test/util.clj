@@ -1,5 +1,5 @@
 (ns tag.apt.test.util
-  (:import (uk.ac.susx.tag.apt APTStore PersistentKVStore)
+  (:import (uk.ac.susx.tag.apt PersistentKVStore)
            (uk.ac.susx.tag.apt APTFactory Resolver Indexer APT Util)
            (java.util Arrays)
            (clojure.lang IFn IDeref)
@@ -28,47 +28,37 @@
 
 (def readable (comp (partial mapv vec) (partial partition-all 4)))
 
-(defn in-memory-apt-store [^APTFactory factory]
-  (let [trees (atom {})]
-    (reify
-      APTStore
-      (get [this key]
-        (or (@trees key)
-            (let [new-tree (.empty factory)]
-              (.put this key new-tree)
-              new-tree)))
-      (containsKey [this key] (contains? @trees key))
-      (put [this key val] (swap! trees assoc key val))
-      (close [this])
-      IDeref
-      (deref [this] @trees))))
+;(defn in-memory-apt-store [^APTFactory factory]
+;  (let [trees (atom {})]
+;    (reify
+;      APTStore
+;      (get [this key]
+;        (or (@trees key)
+;            (let [new-tree (.empty factory)]
+;              (.put this key new-tree)
+;              new-tree)))
+;      (containsKey [this key] (contains? @trees key))
+;      (put [this key val] (swap! trees assoc key val))
+;      (close [this])
+;      IDeref
+;      (deref [this] @trees))))
+;
+;(defn in-memory-caching-apt-store [^APTFactory factory]
+;  (let [trees (atom {})]
+;    (reify
+;      APTStore
+;      (get [this key]
+;        (deserialize (or (@trees key)
+;                         (let [new-tree (serialize (.empty factory))]
+;                           (swap! trees assoc key new-tree)
+;                           new-tree))
+;                     factory))
+;      (containsKey [this key] (contains? @trees key))
+;      (put [this key val] (swap! trees assoc key (serialize val)))
+;      (close [this])
+;      IDeref
+;      (deref [this] @trees))))
 
-(defn in-memory-caching-apt-store [^APTFactory factory]
-  (let [trees (atom {})]
-    (reify
-      APTStore
-      (get [this key]
-        (deserialize (or (@trees key)
-                         (let [new-tree (serialize (.empty factory))]
-                           (swap! trees assoc key new-tree)
-                           new-tree))
-                     factory))
-      (containsKey [this key] (contains? @trees key))
-      (put [this key val] (swap! trees assoc key (serialize val)))
-      (close [this])
-      IDeref
-      (deref [this] @trees))))
-
-
-(defn in-memory-byte-store []
-  (let [store (atom {})]
-    (reify
-      PersistentKVStore
-      (put [this k v]
-        (swap! store assoc k v))
-      (get [this k] (@store k))
-      (containsKey [this k] (contains? @store k))
-      (close [this]))))
 
 
 (defn indexer [start]

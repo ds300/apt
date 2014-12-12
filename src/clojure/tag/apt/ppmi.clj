@@ -5,7 +5,10 @@
                                Int2FloatArraySortedMap))
   (:import (uk.ac.susx.tag.apt BidirectionalIndexer APT ArrayAPT APTFactory)))
 
-(defn from-path [apt [r & more :as path]]
+(defn from-path
+  "delves into an apt strucutre, returning a node at path from apt,
+   creating empty nodes if they do not exist"
+  [apt [r & more :as path]]
   (if r
     (if-let [rapt (.getChild apt r)]
       (from-path rapt more)
@@ -50,7 +53,7 @@
 (defn count-paths [lexicon]
   (let [state (atom {})]
     (doall (util/pmapall-chunked 50
-                                 (fn [[w w-apt]]
+                                 (fn [[_ w-apt]]
                                    (.walk w-apt
                                           (reify APTVisitor
                                             (visit [_ path apt]

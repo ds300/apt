@@ -1,6 +1,6 @@
 (ns tag.apt.backend.leveldb
   (:import (uk.ac.susx.tag.apt ArrayAPT APTFactory APTVisitor)
-           (java.util Iterator Map$Entry))
+           (java.util Iterator Map$Entry Arrays))
   (:require [clojure.java.io :as io]
             [tag.apt.core :as apt]
             [tag.apt.util :as util]
@@ -38,6 +38,11 @@
        (close [this]
          (locking this
            (.close db)))
+       (atomicCAS [this k expected v]
+         (locking this
+           (if (Arrays/equals expected (.get this k))
+             (do (.put this k v) true)
+             false)))
        (iterator [this]
          (let [delegate (locking this (.iterator db))]
            (reify Iterator

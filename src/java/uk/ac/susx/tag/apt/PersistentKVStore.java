@@ -9,6 +9,7 @@ import java.util.Map;
  */
 public interface PersistentKVStore<K, V> extends Closeable, Iterable<Map.Entry<K, V>> {
     void put(K key, V value) throws IOException;
+    boolean atomicCAS(K key, V expected, V value) throws IOException;
     void remove(K key) throws IOException;
     V get(K key) throws IOException;
     boolean containsKey(K key) throws IOException;

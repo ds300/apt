@@ -999,10 +999,14 @@ public class ArrayAPT implements APT {
         return s;
     }
 
+    private boolean floatEquals(float a, float b, float tolerance) {
+        return a==b || Math.abs(a - b) <= tolerance;
+    }
+
     private boolean equals(ArrayAPT other, int returnPath) {
         if (other == this) {
             return true;
-        } else if (other.sum != sum) {
+        } else if (!floatEquals(other.sum, sum, 0.0001f)) {
             return false;
         } else if (other.entities.length != entities.length) {
             return false;
@@ -1011,7 +1015,7 @@ public class ArrayAPT implements APT {
         } else {
 
             for (int i=0; i<entities.length;i++)
-                if (entities[i] != other.entities[i] || scores[i] != other.scores[i])
+                if (entities[i] != other.entities[i] || !floatEquals(scores[i], other.scores[i], 0.0001f))
                     return false;
 
             for (int i=0; i<kids.length; i++)
