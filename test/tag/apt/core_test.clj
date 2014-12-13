@@ -1,4 +1,4 @@
-(ns tag.apt.test.core
+(ns tag.apt.core-test
   (:import (uk.ac.susx.tag.apt Indexer))
   (:require [clojure.test :refer :all]
             [tag.apt.core :refer [indexer relation-indexer]]))

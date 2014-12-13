@@ -3,7 +3,7 @@
            (uk.ac.susx.tag.apt ArrayAPT))
   (:require [clojure.test :refer :all]
             [tag.apt.test.dsl :as dsl]
-            [tag.apt.ppmi :refer [freq2ppmi from-path count-paths reverse-path]]
+            [tag.apt.ppmi :refer [freq->pmi from-path count-paths reverse-path]]
             [tag.apt.backend.in-memory :as im]))
 
 (deftest reverse-path-test
@@ -24,7 +24,7 @@
         deep (from-path apt [-5 -10])]
     (is (= (.getScore deep 45) 90.0))))
 
-(def sample-lexicon {
+(def count-store {
   1 (dsl/apt {1 2}
              {-1 (dsl/apt {3 4})
               1 (dsl/apt {5 6})})
@@ -55,7 +55,7 @@
 (defn pmi [w->p->w' w->p->* *->p->w' *->p->*]
   (float (Math/log (/ (/ w->p->w' w->p->*) (/ *->p->w' *->p->*)))))
 
-(def expected-ppmi-lexicon {
+(def expected-pmi-store {
   1 (dsl/apt {1 (pmi 2 2 2 12)}
              {-1 (dsl/apt {3 (pmi 4 4 2 6)})
                1 (dsl/apt {5 (pmi 5 5 2 8)})})
@@ -69,13 +69,12 @@
 
 
 (deftest path-counts-test
-  (is (= expected-path-counts (count-paths (im/kv-store sample-lexicon)))))
+  (is (= expected-path-counts (count-paths (im/kv-store count-store)))))
 
-(deftest ppmi-test
-  (let [input (im/kv-store sample-lexicon)
-        output (im/kv-store)]
-    (freq2ppmi input output (count-paths input))
+(deftest pmi-test
+  (let [count-lexicon (im/kv-store count-store)
+        f2p (partial freq->pmi input-lexicon expected-path-counts)]
 
-    (is (= (expected-ppmi-lexicon 1) (@output 1)))
-    (is (= (expected-ppmi-lexicon 3) (@output 3)))
-    (is (= (doto (expected-ppmi-lexicon 5) .print) (doto (@output 5) .print)))))
+    (is (= (expected-pmi-store 1) (f2p (count-store 1))))
+    (is (= (expected-pmi-store 3) (f2p (count-store 3))))
+    (is (= (expected-pmi-store 5) (f2p (count-store 5))))))

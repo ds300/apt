@@ -1,4 +1,4 @@
-(ns tag.apt.test.graph
+(ns tag.apt.rgraph-test
   (:import (uk.ac.susx.tag.apt RGraph))
   (:require [tag.apt.test.data :as data]
             [clojure.test :refer [deftest is]]))
