@@ -1,5 +1,6 @@
 (ns tag.apt.conll
-  (:import (java.io Reader)))
+  (:import (java.io Reader)
+           (uk.ac.susx.tag.apt RGraph)))
 
 
 (defmacro or= [val & vals]

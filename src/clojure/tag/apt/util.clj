@@ -97,3 +97,18 @@
         (.write out buf 0 numBytes)
         (recur (.read in buf))))
     (.toByteArray out)))
+
+(defprotocol Intable
+  (to-int [val]))
+
+(extend-type Number
+  Intable
+  (to-int [val] (.intValue val)))
+
+(extend-type int
+  Intable
+  (to-int [val] val))
+
+(extend-type String
+  Intable
+  (to-int [val] (Integer. val)))

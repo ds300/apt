@@ -15,6 +15,17 @@
       (from-path (.withEdge apt r (.empty ArrayAPT/factory)) path))
     apt))
 
+(defn count-paths [lexicon]
+  (let [state (atom {})]
+    (doall (util/pmapall-chunked 50
+                                 (fn [[_ w-apt]]
+                                   (.walk w-apt
+                                          (reify APTVisitor
+                                            (visit [_ path apt]
+                                              (swap! state update-in [(vec path)] (fnil + 0) (.sum apt))))))
+                                 (seq lexicon)))
+    @state))
+
 (defn reverse-path [path]
   (int-array (reverse (map (partial * -1) path))))
 
@@ -28,35 +39,28 @@
 ;    |  -----------  |
 ;     \ P(*->p->*)  /       ; use path-counts shim
 ; )
-(defn freq2ppmi [input-lexicon output-lexicon path-counts]
+(defn freq->pmi [lexicon path-counts apt]
+  ; use the merge facility as a convenient way to traverse an APT while building a new one
+  ; TODO: culling scores that fall below some threshold (e.g. 0 in the case of ppmi)
+  (ArrayAPT/merge2
+    apt
+    (.empty ArrayAPT/factory)
+    Integer/MAX_VALUE
+    (reify ArrayAPT$ScoreMerger2
+      (merge [_ apt _ p]
+        (let [s (.sum apt)
+              count:*->p->* (path-counts (vec p))
+              scores (.entityScores apt)
+              newvals (float-array (for [[w' n] (seq (.entrySet scores))]
+                                     (let [count:w'->r->* (-> (.get lexicon w')
+                                                              (.getChildAt (reverse-path p))
+                                                              .sum)
+                                           numerator (/ n s)
+                                           denomintator (/ count:w'->r->* count:*->p->*)]
+                                       (Math/log (float (/ numerator denomintator))))))]
+          (Int2FloatArraySortedMap. (.keys scores) newvals))))))
+
+(defn convert-lexicon [input-lexicon output-lexicon path-counts]
   (doseq [[w w-apt] (seq input-lexicon)]
-    (let [w-ppmi-apt (ArrayAPT/merge2 w-apt
-                                      (.empty ArrayAPT/factory)
-                                      Integer/MAX_VALUE
-                                      (reify ArrayAPT$ScoreMerger2
-                                        (merge [_ apt _ p]
-                                          (let [s (.sum apt)
-                                                count:*->p->* (path-counts (vec p))
-                                                scores (.entityScores apt)
-                                                newvals (float-array (for [[w' n] (seq (.entrySet scores))]
-                                                                       (let [count:w'->r->* (-> (.get input-lexicon w')
-                                                                                                (.getChildAt (reverse-path p))
-                                                                                                .sum)
-                                                                             numerator (/ n s)
-                                                                             denomintator (/ count:w'->r->* count:*->p->*)]
-                                                                         (Math/log (float (/ numerator denomintator))))))]
-                                            (Int2FloatArraySortedMap. (.keys scores) newvals))))
-                                      (ArrayAPT$EdgeMergePolicy/MERGE_WITH_EMPTY))]
-      (.put output-lexicon w w-ppmi-apt))))
+    (.put output-lexicon w (freq->pmi input-lexicon path-counts w-apt))))
 
-
-(defn count-paths [lexicon]
-  (let [state (atom {})]
-    (doall (util/pmapall-chunked 50
-                                 (fn [[_ w-apt]]
-                                   (.walk w-apt
-                                          (reify APTVisitor
-                                            (visit [_ path apt]
-                                              (swap! state update-in [(vec path)] (fnil + 0) (.sum apt))))))
-                                 (seq lexicon)))
-    @state))
