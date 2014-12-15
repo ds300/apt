@@ -26,7 +26,7 @@
 (defn get-sum [descriptor]
   (let [f (file descriptor :sum-filename)]
     (if (.exists f)
-      (clojure.edn/read-string (slurp file))
+      (clojure.edn/read-string (slurp f))
       0.0)))
 
 (defn put-sum [descriptor sum]

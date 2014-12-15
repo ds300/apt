@@ -381,6 +381,7 @@ public class AccumulativeLazyAPT implements APT {
         }
     }
 
+    //todo: decide whether or not it's worth keeping this as an implementer of APT interface
 
     @Override
     public APT getChild(int relation) {
@@ -419,6 +420,11 @@ public class AccumulativeLazyAPT implements APT {
 
     @Override
     public void walk(APTVisitor visitor) {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public void walk(APTVisitor visitor, int depth) {
         throw new UnsupportedOperationException();
     }
 

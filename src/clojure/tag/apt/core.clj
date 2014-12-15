@@ -1,6 +1,7 @@
 (ns tag.apt.core
   (:import (uk.ac.susx.tag.apt Indexer Resolver BidirectionalIndexer APTVisitor APT)
-           (clojure.lang IPersistentMap IDeref IFn)))
+           (clojure.lang IPersistentMap IDeref IFn))
+  (:require [tag.apt.util :as util]))
 
 (defn- invert-map [m]
   (persistent! (reduce-kv (fn [a k v] (assoc! a v k))
@@ -116,10 +117,15 @@
   (count-path! [this path n])
   (get-path-count [this path]))
 
-(defn count-paths! [path-counter apt]
-  (.walk apt (reify APTVisitor
-               (visit [_ path apt]
-                 (count-path! path-counter path (.sum apt))))))
+(defn count-paths!
+  ([path-counter apt]
+   (count-paths! path-counter apt Integer/MAX_VALUE))
+  ([path-counter apt depth]
+    (.walk apt
+           (reify APTVisitor
+             (visit [_ path apt]
+               (count-path! path-counter path (.sum apt))))
+           (util/to-int depth))))
 
 (defn path-counter
   ([] (path-counter {}))

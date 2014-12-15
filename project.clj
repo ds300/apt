@@ -8,6 +8,7 @@
                  [it.unimi.dsi/fastutil "6.5.7"]
                  [org.deeplearning4j/deeplearning4j-nlp "0.0.3.2.5"]
                  [uk.ac.susx.mlcl/Byblo "2.1.0"]
+                 [org.clojure/tools.logging "0.3.1"]
                  [org.clojure/core.async "0.1.346.0-17112a-alpha"]
                  [org.fusesource.leveldbjni/leveldbjni-all "1.8"]]
   :main tag.apt.construct

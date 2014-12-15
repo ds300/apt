@@ -1,6 +1,7 @@
 .*
 !.gitignore
 /target
+/logs
 /classes
 /checkouts
 pom.xml

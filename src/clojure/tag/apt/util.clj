@@ -105,7 +105,7 @@
   Intable
   (to-int [val] (.intValue val)))
 
-(extend-type int
+(extend-type Integer
   Intable
   (to-int [val] val))
 

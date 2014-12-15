@@ -309,7 +309,13 @@ public class ArrayAPT implements APT {
 
     @Override
     public void walk(APTVisitor visitor) {
-        walk(visitor, new int[0], 0);
+        walk(visitor, Integer.MAX_VALUE);
+    }
+
+    @Override
+    public void walk(APTVisitor visitor, int depth) {
+        if (depth < 0) throw new IllegalArgumentException("depth must be >= 0");
+        walk(visitor, new int[0], 0, depth);
     }
 
     private static int[] append(int[] a, int x) {
@@ -319,12 +325,14 @@ public class ArrayAPT implements APT {
         return res;
     }
 
-    private void walk(APTVisitor<ArrayAPT> visitor, int[] path, int returnEdge) {
+    private void walk(APTVisitor<ArrayAPT> visitor, int[] path, int returnEdge, int depth) {
         visitor.visit(path, this);
-        for (int i=0;i<edges.length;i++) {
-            int edge = edges[i];
-            if (edge != returnEdge) {
-                kids[i].walk(visitor, append(path, edge), -edge);
+        if (depth > 0) {
+            for (int i=0;i<edges.length;i++) {
+                int edge = edges[i];
+                if (edge != returnEdge) {
+                    kids[i].walk(visitor, append(path, edge), -edge, depth-1);
+                }
             }
         }
     }

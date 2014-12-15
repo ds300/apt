@@ -64,6 +64,13 @@ public interface APT {
     void walk(APTVisitor visitor);
 
     /**
+     * as {@link APT#walk(uk.ac.susx.tag.apt.APTVisitor)}, but only goes {@code depth} nodes deep.
+     * @param visitor
+     * @param depth
+     */
+    void walk(APTVisitor visitor, int depth);
+
+    /**
      * Creates a new APT which includes the specified token/score pair. Replacing any existing score for
      * {@code token}.
      * @param tokenId the ID of the token
