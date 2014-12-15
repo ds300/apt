@@ -1,4 +1,5 @@
 (ns tag.apt.construct
+  (:gen-class)
   (:import (uk.ac.susx.tag.apt APTFactory ArrayAPT APTVisitor RGraph PersistentKVStore Indexer AccumulativeAPTStore)
            (java.io File))
   (:require [tag.apt.util :as util]
@@ -71,6 +72,8 @@
       (seq (.listFiles f))
       [f])))
 
+(def sents-per-report 1000)
+
 (defn -main [input-dir output-dir depth]
   (let [lexicon-descriptor (b/lexicon-descriptor (io/as-file output-dir))
         output-byte-store (leveldb/from-descriptor lexicon-descriptor)
@@ -79,6 +82,7 @@
         relation-indexer (b/get-relation-index lexicon-descriptor)
         sum (atom (b/get-sum lexicon-descriptor))
         number-of-sentences-processed (atom 0)
+        last-report-time (atom (System/currentTimeMillis))
         path-counter (b/get-path-counter lexicon-descriptor)
         consume-sentence! (fn [sent]
                             (doseq [[entity-id apt] (->> sent
@@ -99,8 +103,9 @@
       (add-watch number-of-sentences-processed
                  :reporter
                  (fn [_ _ _ new-val]
-                   (when (= 0 (mod new-val 100))
-                     (println "done" new-val "sentences"))))
+                   (let [current-time (System/currentTimeMillis)]
+                     (when (= 0 (mod new-val sents-per-report))
+                       (println "done" new-val "sentences." (float (/ sents-per-report (/ (- current-time @last-report-time) 1000))) "sents/s")))))
       ; start producers
       (dorun sent-extractors)
       ; start consumers

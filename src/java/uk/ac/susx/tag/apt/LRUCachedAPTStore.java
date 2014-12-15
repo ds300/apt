@@ -153,6 +153,11 @@ public class LRUCachedAPTStore<T extends APT> implements PersistentKVStore<Integ
                     }
                 }
             }
+
+            @Override
+            public void remove() {
+                throw new UnsupportedOperationException();
+            }
         };
     }
 
