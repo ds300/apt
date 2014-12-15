@@ -1,6 +1,7 @@
 (ns tag.apt.backend
   (:import (java.io Writer File FileInputStream FileOutputStream)
-           (java.nio.channels FileChannel))
+           (java.nio.channels FileChannel)
+           (uk.ac.susx.tag.apt APTVisitor))
   (:require [tag.apt.core :as apt]
             [tag.apt.util :as util]
             [clojure.java.io :as io]
@@ -76,3 +77,10 @@
 
 (defn store-path-counts [descriptor path-counts]
   (put-edn (file descriptor :path-counts-filename) path-counts))
+
+(defn get-path-counter [descriptor]
+  (apt/path-counter (get-path-counts descriptor)))
+
+(defn store-path-counter [descriptor path-counter]
+  (store-path-counts descriptor @path-counter))
+

@@ -112,3 +112,12 @@
 (extend-type String
   Intable
   (to-int [val] (Integer. val)))
+
+(defn multiplex
+  "multiplex seqs. like clojure.core/interleave but keeps going if the given seqs are different lengths"
+  [& [s & more]]
+  (when s
+    (lazy-seq
+      (if (seq s)
+        (cons (first s) (apply multiplex (concat more (list (rest s)))))
+        (apply multiplex more)))))

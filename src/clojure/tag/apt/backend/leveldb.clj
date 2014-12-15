@@ -55,3 +55,5 @@
                    (getValue [_] (.getValue e))))))))))))
 
 
+(defn from-descriptor [{:keys [dir]}]
+  (byte-store dir))

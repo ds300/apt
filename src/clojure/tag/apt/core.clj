@@ -1,5 +1,5 @@
 (ns tag.apt.core
-  (:import (uk.ac.susx.tag.apt Indexer Resolver BidirectionalIndexer)
+  (:import (uk.ac.susx.tag.apt Indexer Resolver BidirectionalIndexer APTVisitor APT)
            (clojure.lang IPersistentMap IDeref IFn)))
 
 (defn- invert-map [m]
@@ -112,17 +112,26 @@
     a-or-v
     (into [] a-or-v)))
 
+(defprotocol PathCounter
+  (count-path! [this path n])
+  (get-path-count [this path]))
+
+(defn count-paths! [path-counter apt]
+  (.walk apt (reify APTVisitor
+               (visit [_ path apt]
+                 (count-path! path-counter path (.sum apt))))))
+
 (defn path-counter
   ([] (path-counter {}))
   ([init]
    (when-not (map? init) (throw (Exception. "path counter init value should be a map")))
    (let [state (atom init)]
      (reify
-       IFn
-       (invoke [this path]
-         (@state (-ensure-vector path)))
-       (invoke [this path n]
+       PathCounter
+       (count-path! [_ path n]
          (swap! state update-in [(-ensure-vector path)] (fnil + 0) n))
+       (get-path-count [_ path]
+         (@state (-ensure-vector path)))
        IDeref
        (deref [this]
          @state)))))
