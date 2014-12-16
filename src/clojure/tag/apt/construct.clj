@@ -1,7 +1,7 @@
 (ns tag.apt.construct
   (:gen-class)
   (:import (uk.ac.susx.tag.apt APTFactory ArrayAPT APTVisitor RGraph PersistentKVStore Indexer AccumulativeAPTStore)
-           (java.io File Reader))
+           (java.io File Reader BufferedReader FileReader))
   (:require [tag.apt.util :as util]
             [tag.apt.conll :as conll]
             [tag.apt.canon :as canon]
@@ -56,18 +56,22 @@
                         (.getIndex relation-indexer (canon/canonicalise-relation dep))))))
     graph))
 
-(defn sent-extractor [sent-channel ^File file]
-  (async/go
+(defmacro godochan [[s c] & body]
+  `(async/go
+    (loop [~s (async/<! ~c)]
+       (when (not (nil? ~s))
+         ~@body
+         (recur (async/<! ~c))))))
+
+(defn sent-extractor [file-channel sent-channel]
+  (godochan [file file-channel]
     (with-open [^Reader in (if (.endsWith ^String (.getName ^File file) ".gz")
-                             (util/gz-reader file)
-                             (io/reader file))]
+                             (util/gz-reader file (* 1024 1024))
+                             (BufferedReader. (FileReader. file) (* 1024 1024)))]
       (doseq [sent (conll/parse in)]
         (async/>! sent-channel sent)))))
 
-(defn godochan [chan consume!]
-  (async/go
-    (loop [x (async/<! chan)]
-      (when x (consume! x) (recur (async/<! chan))))))
+
 
 (defn- get-input-files [dir-or-file]
   (let [f (io/as-file dir-or-file)]
@@ -75,7 +79,7 @@
       (seq (.listFiles f))
       [f])))
 
-(def sents-per-report 1000)
+(def sents-per-report 10000)
 
 (defn -main [input-dir output-dir depth]
   (let [lexicon-descriptor (b/lexicon-descriptor (io/as-file output-dir))
@@ -96,11 +100,12 @@
                               (count-paths! path-counter apt depth)
                               )
                             (swap! number-of-sentences-processed inc))
+        file-channel (doto (async/chan)
+                       (async/onto-chan (get-input-files input-dir)))
         sent-channel (async/chan 1000)
-        sent-extractors (map (partial sent-extractor sent-channel)
-                            (get-input-files input-dir))
+        sent-extractors (take 5 (repeatedly #(sent-extractor file-channel sent-channel)))
         num-sent-consumers (* 2 (.availableProcessors (Runtime/getRuntime)))
-        sent-consumers (take num-sent-consumers (repeatedly #(godochan sent-channel consume-sentence!)))]
+        sent-consumers (take num-sent-consumers (repeatedly #(godochan [sent sent-channel] (consume-sentence! sent))))]
     (try
 
       ; setup reporter
