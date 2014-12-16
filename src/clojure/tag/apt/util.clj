@@ -6,6 +6,8 @@
            (java.nio.channels FileChannel))
   (:require [clojure.java.io :as io]))
 
+(set! *warn-on-reflection* true)
+
 (defn pmapall
   "like pmap, but eager, and with more efficient core usage."
   [f coll]
@@ -58,7 +60,7 @@
   (if (.isDirectory src)
     (do
       (.mkdirs dst)
-      (doseq [child (.listFiles src)]
+      (doseq [^File child (.listFiles src)]
         (let [new-child (File. dst (.getName child))]
           (copy child new-child))))
     (when (or overwrite (not (.exists dst)))

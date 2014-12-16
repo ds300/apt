@@ -1,11 +1,11 @@
 (ns tag.apt.backend
-  (:import (java.io Writer File FileInputStream FileOutputStream)
-           (java.nio.channels FileChannel)
-           (uk.ac.susx.tag.apt APTVisitor))
+  (:import (java.io Writer File Reader))
   (:require [tag.apt.core :as apt]
             [tag.apt.util :as util]
             [clojure.java.io :as io]
             [clojure.edn :as edn]))
+
+(set! *warn-on-reflection* true)
 
 (def lexicon-descriptor-defaults {
   :dir (File. "lexicon")
@@ -18,13 +18,13 @@
 (defn lexicon-descriptor [dir]
   (assoc lexicon-descriptor-defaults :dir (io/as-file dir)))
 
-(defn file [{dir :dir :as descriptor} filename]
+(defn file [{^File dir :dir :as descriptor} filename]
   (if (keyword? filename)
-    (File. dir (filename descriptor))
+    (File. dir ^String (filename descriptor))
     (File. dir (str filename))))
 
 (defn get-sum [descriptor]
-  (let [f (file descriptor :sum-filename)]
+  (let [f ^File (file descriptor :sum-filename)]
     (if (.exists f)
       (clojure.edn/read-string (slurp f))
       0.0)))
@@ -32,12 +32,12 @@
 (defn put-sum [descriptor sum]
   (spit (file descriptor :sum-filename) (str sum)))
 
-(defn- get-indexer-map [file]
+(defn- get-indexer-map [^File file]
   (if (.exists file)
-    (with-open [in (util/gz-reader file)]
-      (into {} (for [line (keep not-empty (line-seq in))
+    (with-open [in ^Reader (util/gz-reader file)]
+      (into {} (for [^String line (keep not-empty (line-seq in))
                      :let [[entity idx] (.split line "\t")]]
-                 [entity (Long. idx)])))
+                 [entity (Long. ^String idx)])))
     {}))
 
 (defn- put-indexer-map [file map]
@@ -50,7 +50,7 @@
     (binding [*out* out]
       (pr data))))
 
-(defn read-edn-or [file or-obj]
+(defn read-edn-or [^File file or-obj]
   (if (.exists file)
     (edn/read-string (slurp (util/gz-reader file)))
     or-obj))

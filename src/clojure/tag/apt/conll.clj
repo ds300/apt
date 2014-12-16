@@ -1,12 +1,12 @@
 (ns tag.apt.conll
-  (:import (java.io Reader)
-           (uk.ac.susx.tag.apt RGraph)))
+  (:import (java.io Reader)))
 
+(set! *warn-on-reflection* true)
 
 (defmacro or= [val & vals]
   `(or ~@(for [v vals] `(= ~val ~v))))
 
-(defn- parse* [rdr acc]
+(defn- parse* [^Reader rdr acc]
   (let [c (.read rdr)]
     (cond
       (= c 10)    (if (zero? (count acc))

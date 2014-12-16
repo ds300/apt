@@ -1,23 +1,19 @@
 (ns tag.apt.backend.leveldb
-  (:import (uk.ac.susx.tag.apt ArrayAPT APTFactory APTVisitor)
-           (java.util Iterator Map$Entry Arrays))
-  (:require [clojure.java.io :as io]
-            [tag.apt.core :as apt]
-            [tag.apt.util :as util]
-            [tag.apt.backend :as b])
+  (:import (java.util Iterator Map$Entry Arrays))
+  (:require [clojure.java.io :as io])
   (:import [org.iq80.leveldb Options DB]
            [org.iq80.leveldb.impl Iq80DBFactory]
            [org.fusesource.leveldbjni JniDBFactory]
-           (uk.ac.susx.tag.apt PersistentKVStore Util APTFactory APT RGraph)
-           (java.io File)))
+           (uk.ac.susx.tag.apt PersistentKVStore Util)))
 
+(set! *warn-on-reflection* true)
 
 (def ^:dynamic *get-default-options* (fn [] (.createIfMissing (Options.) true)))
 
 (defn byte-store
   ([dir] (byte-store dir (*get-default-options*)))
   ([dir options]
-   (let [db (try (.open JniDBFactory/factory (io/as-file dir) options)
+   (let [^DB db (try (.open JniDBFactory/factory (io/as-file dir) options)
                  (catch Exception e
                    (binding [*out* *err*]
                      (println "Can't use jni bindings for leveldb for some raisin."))
@@ -40,16 +36,16 @@
            (.close db)))
        (atomicCAS [this k expected v]
          (locking this
-           (if (Arrays/equals expected (.get this k))
+           (if (Arrays/equals ^bytes expected ^bytes (.get this k))
              (do (.put this k v) true)
              false)))
        (iterator [this]
-         (let [delegate (locking this (.iterator db))]
+         (let [^Iterator delegate (locking this (.iterator db))]
            (reify Iterator
              (hasNext [_]
                (.hasNext delegate))
              (next [_]
-               (when-let [e (locking this (.next delegate))]
+               (when-let [^Map$Entry e (locking this (.next delegate))]
                  (reify Map$Entry
                    (getKey [_] (Util/bytes2int (.getKey e)))
                    (getValue [_] (.getValue e))))))))))))

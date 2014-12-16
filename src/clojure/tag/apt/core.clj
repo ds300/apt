@@ -3,6 +3,8 @@
            (clojure.lang IPersistentMap IDeref IFn))
   (:require [tag.apt.util :as util]))
 
+(set! *warn-on-reflection* true)
+
 (defn- invert-map [m]
   (persistent! (reduce-kv (fn [a k v] (assoc! a v k))
                           (transient {})
@@ -23,30 +25,30 @@
     (reify
       BidirectionalIndexer
       (getIndex [this s]
-        (if (.startsWith s "_")
-          (let [rel (.substring s 1)]
-            (- (or (get (.val2idx @state) rel)
-                   (dec (.next (swap! state put! rel))))))
-          (or (get (.val2idx @state) s)
-              (dec (.next (swap! state put! s))))))
+        (if (.startsWith ^String s "_")
+          (let [rel (.substring ^String s 1)]
+            (- (or (get (.val2idx ^BidirectionalIndex @state) rel)
+                   (dec (.next ^BidirectionalIndex (swap! state put! rel))))))
+          (or (get (.val2idx ^BidirectionalIndex @state) s)
+              (dec (.next ^BidirectionalIndex (swap! state put! s))))))
 
       (hasIndex [this s]
-        (boolean (get (.val2idx @state) s)))
+        (boolean (get (.val2idx ^BidirectionalIndex @state) s)))
 
       (resolve [this idx]
         (if (< idx 0)
-          (when-let [val (get (.idx2val @state) (- idx))]
+          (when-let [val (get (.idx2val ^BidirectionalIndex @state) (- idx))]
             (str "_" val))
-          (get (.idx2val @state) idx)))
+          (get (.idx2val ^BidirectionalIndex @state) idx)))
 
       (getValues [this]
-        (keys (.val2idx @state)))
+        (keys (.val2idx ^BidirectionalIndex @state)))
 
       (getIndices [this]
-        (keys (.idx2val @state)))
+        (keys (.idx2val ^BidirectionalIndex @state)))
 
       IDeref
-      (deref [this] (.val2idx @state))
+      (deref [this] (.val2idx ^BidirectionalIndex @state))
 
       IFn
       (invoke [this val]
@@ -67,23 +69,23 @@
     (reify
       BidirectionalIndexer
       (getIndex [this s]
-        (or (get (.val2idx @state) s)
-            (dec (.next (swap! state put! s)))))
+        (or (get (.val2idx ^BidirectionalIndex @state) s)
+            (dec (.next ^BidirectionalIndex (swap! state put! s)))))
 
       (hasIndex [this s]
-        (boolean (get (.val2idx @state) s)))
+        (boolean (get (.val2idx ^BidirectionalIndex @state) s)))
 
       (resolve [this idx]
-        (get (.idx2val @state) idx))
+        (get (.idx2val ^BidirectionalIndex @state) idx))
 
       (getValues [this]
-        (keys (.val2idx @state)))
+        (keys (.val2idx ^BidirectionalIndex @state)))
 
       (getIndices [this]
-        (keys (.idx2val @state)))
+        (keys (.idx2val ^BidirectionalIndex @state)))
 
       IDeref
-      (deref [this] (.val2idx @state))
+      (deref [this] (.val2idx ^BidirectionalIndex @state))
 
       IFn
       (invoke [this val]
@@ -120,7 +122,7 @@
 (defn count-paths!
   ([path-counter apt]
    (count-paths! path-counter apt Integer/MAX_VALUE))
-  ([path-counter apt depth]
+  ([path-counter ^APT apt depth]
     (.walk apt
            (reify APTVisitor
              (visit [_ path apt]

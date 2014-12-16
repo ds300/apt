@@ -5,6 +5,8 @@
                                Int2FloatArraySortedMap))
   (:import (uk.ac.susx.tag.apt BidirectionalIndexer APT ArrayAPT APTFactory)))
 
+(set! *warn-on-reflection* true)
+
 (defn from-path
   "delves into an apt strucutre, returning a node at path from apt,
    creating empty nodes if they do not exist"

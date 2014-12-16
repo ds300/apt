@@ -2,6 +2,8 @@
   (:import (uk.ac.susx.tag.apt PersistentKVStore)
            (clojure.lang IDeref)))
 
+(set! *warn-on-reflection* true)
+
 (defn kv-store
   "uses a simple persistent backing map. Keys must have sensible hashCode/equals semantics obviously.
   values must have sensible equals semantics for CAS to work."

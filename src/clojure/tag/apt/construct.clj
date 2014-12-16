@@ -1,7 +1,7 @@
 (ns tag.apt.construct
   (:gen-class)
   (:import (uk.ac.susx.tag.apt APTFactory ArrayAPT APTVisitor RGraph PersistentKVStore Indexer AccumulativeAPTStore)
-           (java.io File))
+           (java.io File Reader))
   (:require [tag.apt.util :as util]
             [tag.apt.conll :as conll]
             [tag.apt.canon :as canon]
@@ -11,7 +11,9 @@
             [clojure.java.io :as io]
             [tag.apt.backend.leveldb :as leveldb]))
 
-(defn graph->apts [graph]
+(set! *warn-on-reflection* true)
+
+(defn graph->apts [^RGraph graph]
   (let [eids (.entityIds graph)
         len (count eids)
         apts (.fromGraph ArrayAPT/factory graph)]
@@ -26,14 +28,14 @@
   "takes a sentence with [entity-offset entity-id governor-offset relation-id]
   Use -1 as governor-index if the govenor is the root"
   [sent]
-  (let [graph (RGraph. (inc (reduce max 0 (map first sent))))
+  (let [graph (RGraph. (int (inc (reduce max 0 (map first sent)))))
         ids   (.entityIds graph)]
-    (doseq [[i eid govid relid] sent]
+    (doseq [[^int i ^int eid ^int govid ^int relid] sent]
       (.addRelation graph i govid relid)
       (aset ids i eid))
     graph))
 
-(defn raw-sentence->indexed-sentence [entity-indexer relation-indexer sentence]
+(defn raw-sentence->indexed-sentence [^Indexer entity-indexer ^Indexer relation-indexer sentence]
   (mapv (fn [[entity-offset entity governor-offset relation]]
           [(util/to-int entity-offset)
            (.getIndex entity-indexer entity)
@@ -41,23 +43,24 @@
            (.getIndex relation-indexer relation)])
         sentence))
 
-(defn raw-giga-sentence->graph [entity-indexer relation-indexer sentence]
+(defn raw-giga-sentence->graph [^Indexer entity-indexer ^Indexer relation-indexer sentence]
   (let [graph (RGraph. (count sentence))
         ids (.entityIds graph)]
-    (doseq [[i word lemma pos gov-offset dep] sentence]
-      (aset ids (Integer. i) (.getIndex entity-indexer (str lemma "/" (canon/canonicalise-pos-tag pos))))
-      (when gov-offset
-        (.addRelation graph
-                      (Integer. i)
-                      (Integer. gov-offset)
-                      (.getIndex relation-indexer (canon/canonicalise-relation dep)))))
+    (doseq [[^String i word lemma pos ^String gov-offset dep] sentence]
+      (let [i (Integer. i)]
+        (aset ids i (.getIndex entity-indexer (str lemma "/" (canon/canonicalise-pos-tag pos))))
+        (when gov-offset
+          (.addRelation graph
+                        i
+                        (Integer. gov-offset)
+                        (.getIndex relation-indexer (canon/canonicalise-relation dep))))))
     graph))
 
-(defn sent-extractor [sent-channel file]
+(defn sent-extractor [sent-channel ^File file]
   (async/go
-    (with-open [in (if (.endsWith (.getName file) ".gz")
-                     (util/gz-reader file)
-                     (io/reader file))]
+    (with-open [^Reader in (if (.endsWith ^String (.getName ^File file) ".gz")
+                             (util/gz-reader file)
+                             (io/reader file))]
       (doseq [sent (conll/parse in)]
         (async/>! sent-channel sent)))))
 
@@ -77,7 +80,7 @@
 (defn -main [input-dir output-dir depth]
   (let [lexicon-descriptor (b/lexicon-descriptor (io/as-file output-dir))
         output-byte-store (leveldb/from-descriptor lexicon-descriptor)
-        accumulative-apt-store (AccumulativeAPTStore. output-byte-store (Integer. depth))
+        accumulative-apt-store (AccumulativeAPTStore. output-byte-store (Integer. ^String depth))
         entity-indexer (b/get-entity-index lexicon-descriptor)
         relation-indexer (b/get-relation-index lexicon-descriptor)
         sum (atom (b/get-sum lexicon-descriptor))

@@ -2,6 +2,8 @@
   (:require [clojure.tools.logging :as log]
             [clojure.java.io :as io]))
 
+(set! *warn-on-reflection* true)
+
 (def ^:dynamic *pos-map*
   {  "JJ", "J"
      "JJN", "J"
@@ -102,7 +104,7 @@
                                    ["sdep"
                                     "xsubj"]])))
 
-(defn canonicalise-relation [rel]
+(defn canonicalise-relation [^String rel]
   (or (*rel-map* rel)
       (do
         (log/warn
