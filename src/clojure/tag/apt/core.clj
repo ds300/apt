@@ -1,6 +1,8 @@
 (ns tag.apt.core
   (:import (uk.ac.susx.tag.apt Indexer Resolver BidirectionalIndexer APTVisitor APT)
-           (clojure.lang IPersistentMap IDeref IFn))
+           (clojure.lang IPersistentMap IDeref IFn Atom)
+           [it.unimi.dsi.fastutil.ints Int2ObjectArrayMap]
+           [java.util.concurrent.atomic AtomicLong])
   (:require [tag.apt.util :as util]))
 
 (set! *warn-on-reflection* true)
@@ -128,6 +130,54 @@
              (visit [_ path apt]
                (count-path! path-counter path (.sum apt))))
            (util/to-int depth))))
+
+(declare count-path!*)
+(declare get-path-count*)
+(declare to-map)
+
+(deftype pctuple [^AtomicLong countatom kids]
+  PathCounter
+  (count-path! [this path n]
+    (count-path!* this path (alength ^ints path) (int 0) n))
+  (get-path-count [this path]
+    (get-path-count* this path (alength ^ints path) 0))
+  IDeref
+  (deref [this] (to-map this)))
+
+(defn- count-path!* [^pctuple tup ^ints path ^Integer pathlength ^Integer offset ^Integer n]
+  (if (= offset pathlength)
+    (.addAndGet ^AtomicLong (.countatom tup) n)
+    (let [kid-id (aget path offset)]
+      (if-let [^pctuple kid (get @(.kids tup) kid-id)]
+        (recur kid path pathlength (inc offset) n)
+        (do (swap! (.kids tup) (fn [state]
+                                 (if-let [existing (get state kid-id)]
+                                   state
+                                   (assoc state kid-id (->pctuple (AtomicLong. 0) (atom {}))))))
+            (recur (get @(.kids tup) kid-id) path pathlength (inc offset) n))))))
+
+(defn- get-path-count* [^pctuple tup ^ints path ^Integer pathlength ^Integer offset]
+  (if (= offset pathlength)
+    (.get ^AtomicLong (.countatom tup))
+    (if-let [^pctuple kid (get @(.kids tup) (aget path offset))]
+      (recur kid path pathlength (inc offset))
+      0)))
+
+(defn- to-map [tup]
+  (let [acc (atom (transient {}))
+        descend (fn descend [^pctuple tup path]
+                  (let [c (.get ^AtomicLong (.countatom tup))]
+                    (when (pos? c)
+                      (reset! acc (assoc! @acc path c))))
+                  (doseq [[k v] @(.kids tup)]
+                    (descend v (conj path k))))]
+    (descend tup [])
+    (persistent! @acc)))
+
+(defn path-counter2
+  ([init] (reduce-kv #(count-path! %1 (int-array %2) %3) (path-counter2) init))
+  ([]
+    (->pctuple (AtomicLong. 0) (atom {}))))
 
 (defn path-counter
   ([] (path-counter {}))

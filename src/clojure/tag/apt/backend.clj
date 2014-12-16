@@ -79,7 +79,7 @@
   (put-edn (file descriptor :path-counts-filename) path-counts))
 
 (defn get-path-counter [descriptor]
-  (apt/path-counter (get-path-counts descriptor)))
+  (apt/path-counter2 (get-path-counts descriptor)))
 
 (defn store-path-counter [descriptor path-counter]
   (store-path-counts descriptor @path-counter))

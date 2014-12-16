@@ -93,7 +93,8 @@
                                                       graph->apts)]
                               (.include accumulative-apt-store entity-id apt)
                               (swap! sum inc)
-                              (count-paths! path-counter apt depth))
+                              (count-paths! path-counter apt depth)
+                              )
                             (swap! number-of-sentences-processed inc))
         sent-channel (async/chan 1000)
         sent-extractors (map (partial sent-extractor sent-channel)
@@ -108,7 +109,8 @@
                  (fn [_ _ _ new-val]
                    (let [current-time (System/currentTimeMillis)]
                      (when (= 0 (mod new-val sents-per-report))
-                       (println "done" new-val "sentences." (float (/ sents-per-report (/ (- current-time @last-report-time) 1000))) "sents/s")))))
+                       (println "done" new-val "sentences." (float (/ sents-per-report (/ (- current-time @last-report-time) 1000))) "sents/s")
+                       (reset! last-report-time current-time)))))
       ; start producers
       (dorun sent-extractors)
       ; start consumers
