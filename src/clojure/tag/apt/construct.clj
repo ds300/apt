@@ -79,9 +79,22 @@
       (seq (.listFiles f))
       [f])))
 
+(defn- b->gb [n]
+  (double (/ n 1024 1024 1024)))
+
+(defn- dp [n dp]
+  (let [shift (Math/pow 10 dp)]
+    (/ (long (* shift n)) shift)))
+
+(defn- memory-report []
+  (let [rt (Runtime/getRuntime)]
+    { :max (dp (b->gb (.maxMemory rt)) 1)
+      :used (dp (b->gb (- (.totalMemory rt) (.freeMemory rt))) 1)
+     }))
+
 (def sents-per-report 10000)
 
-(defn -main [input-dir output-dir depth]
+(defn -main [output-dir depth & input-files]
   (let [lexicon-descriptor (b/lexicon-descriptor (io/as-file output-dir))
         output-byte-store (leveldb/from-descriptor lexicon-descriptor)
         accumulative-apt-store (AccumulativeAPTStore. output-byte-store (Integer. ^String depth))
@@ -92,16 +105,18 @@
         last-report-time (atom (System/currentTimeMillis))
         path-counter (b/get-path-counter lexicon-descriptor)
         consume-sentence! (fn [sent]
-                            (doseq [[entity-id apt] (->> sent
-                                                      (raw-giga-sentence->graph entity-indexer relation-indexer)
-                                                      graph->apts)]
-                              (.include accumulative-apt-store entity-id apt)
-                              (swap! sum inc)
-                              (count-paths! path-counter apt depth)
-                              )
-                            (swap! number-of-sentences-processed inc))
+                            (when-let [apt-seq (try (->> sent
+                                                         (raw-giga-sentence->graph entity-indexer relation-indexer)
+                                                         graph->apts)
+                                                    (catch NumberFormatException e nil))]
+
+                              (doseq [[entity-id apt] apt-seq]
+                                (.include accumulative-apt-store entity-id apt)
+                                (swap! sum inc)
+                                (count-paths! path-counter apt depth) )
+                              (swap! number-of-sentences-processed inc)))
         file-channel (doto (async/chan)
-                       (async/onto-chan (get-input-files input-dir)))
+                       (async/onto-chan (mapcat get-input-files input-files)))
         sent-channel (async/chan 1000)
         sent-extractors (take 5 (repeatedly #(sent-extractor file-channel sent-channel)))
         num-sent-consumers (* 2 (.availableProcessors (Runtime/getRuntime)))
@@ -112,9 +127,11 @@
       (add-watch number-of-sentences-processed
                  :reporter
                  (fn [_ _ _ new-val]
-                   (let [current-time (System/currentTimeMillis)]
+                   (let [current-time (System/currentTimeMillis)
+                         mem (memory-report)]
                      (when (= 0 (mod new-val sents-per-report))
-                       (println "done" new-val "sentences." (float (/ sents-per-report (/ (- current-time @last-report-time) 1000))) "sents/s")
+                       (println "done" new-val "sentences." (float (/ sents-per-report (/ (- current-time @last-report-time) 1000))) "sents/s."
+                                "Used" (:used mem) "of" (:max mem))
                        (reset! last-report-time current-time)))))
       ; start producers
       (dorun sent-extractors)

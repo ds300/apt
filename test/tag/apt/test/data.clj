@@ -44,5 +44,4 @@
       (aset ids i (token-indexer [word pos])))
     graph))
 
-
 (def graphs (mapv sent->graph sents))

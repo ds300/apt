@@ -6,7 +6,8 @@
             [tag.apt.test.data :as data]
             [tag.apt.array-apt-test :as aapt]
             [tag.apt.test.util :as util]
-            [tag.apt.backend.in-memory :as im]))
+            [tag.apt.backend.in-memory :as im]
+            [clojure.java.io :as io]))
 
 
 (defn reference-lexicon []
