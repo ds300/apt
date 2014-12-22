@@ -16,7 +16,8 @@
    (let [^DB db (try (.open JniDBFactory/factory (io/as-file dir) options)
                  (catch Exception e
                    (binding [*out* *err*]
-                     (println "Can't use jni bindings for leveldb for some raisin."))
+                     (println "Can't use jni bindings for leveldb for some raisin.")
+                     (.printStackTrace e))
                    (.open Iq80DBFactory/factory dir options)))]
      (reify
        PersistentKVStore

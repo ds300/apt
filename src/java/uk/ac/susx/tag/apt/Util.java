@@ -1,6 +1,7 @@
 package uk.ac.susx.tag.apt;
 
 
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.ByteBuffer;
@@ -149,5 +150,120 @@ public class Util {
                 return bytesRead;
             }
         }
+    }
+
+
+
+    private static final char[] b64table = new char[] {
+            'A','B','C','D','E','F','G','H','I','J','K','L','M','N','O','P','Q','R','S','T','U','V','W','X','Y','Z'
+            ,'a','b','c','d','e','f','g','h','i','j','k','l','m','n','o','p','q','r','s','t','u','v','w','x','y','z'
+            ,'0','1','2','3','4','5','6','7','8','9'
+            ,'+','_'
+    };
+
+    private static final byte[] b64reverseTable = new byte[123];
+
+    static {
+        for (int i = 0; i < b64table.length; i++) {
+            b64reverseTable[b64table[i]] = (byte) i;
+        }
+    }
+
+    public static String base64encode(byte[] bytes) {
+        int current = 0;
+        int state = 0;
+
+        StringBuilder sb = new StringBuilder();
+
+        for (byte b : bytes) {
+            switch (state) {
+                case 0:
+                    sb.append(b64table[(b & 0b11111100) >>> 2]);
+                    current = (b & 0b00000011) << 4;
+                    state = 1;
+                    break;
+                case 1:
+                    current = current ^ ((b & 0b11110000) >>> 4);
+                    sb.append(b64table[current]);
+                    current = (b & 0b00001111) << 2;
+                    state = 2;
+                    break;
+                case 2:
+                    current = current ^ ((b & 0b11000000) >>> 6);
+                    sb.append(b64table[current]);
+                    sb.append(b64table[b & 0b00111111]);
+                    state = 0;
+                    break;
+            }
+        }
+
+        // explicit padding unnecessary
+        if (state > 0) {
+            sb.append(b64table[current]);
+        }
+
+        return sb.toString();
+    }
+
+    public static byte[] base64decode (String string) {
+        int len = string.length();
+        int iter = len - (len % 4);
+
+        ByteArrayOutputStream buffer = new ByteArrayOutputStream();
+
+        int i=0;
+        for (; i<iter; i+=4) {
+            byte a = b64reverseTable[string.charAt(i)];
+            byte b = b64reverseTable[string.charAt(i+1)];
+            byte c = b64reverseTable[string.charAt(i+2)];
+            byte d = b64reverseTable[string.charAt(i+3)];
+
+            byte[] bytes = new byte[3];
+            bytes[0] = (byte) ((a << 2) ^ ((b & 0b00110000) >>> 4));
+            bytes[1] = (byte) (((b & 0b00001111) << 4) ^ ((c & 0b00111100) >>> 2));
+            bytes[2] = (byte) (((c & 0b00000011) << 6) ^ d);
+
+            try {
+                buffer.write(bytes);
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+        }
+
+        switch (len - iter) {
+            case 0:
+                break;
+            case 3: {
+                byte a = b64reverseTable[string.charAt(i)];
+                byte b = b64reverseTable[string.charAt(i+1)];
+                byte c = b64reverseTable[string.charAt(i+2)];
+                byte[] bytes = new byte[2];
+                bytes[0] = (byte) ((a << 2) ^ ((b & 0b00110000) >>> 4));
+                bytes[1] = (byte) (((b & 0b00001111) << 4) ^ ((c & 0b00111100) >>> 2));
+                try {
+                    buffer.write(bytes);
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
+                break;
+            }
+
+            case 2: {
+                byte a = b64reverseTable[string.charAt(i)];
+                byte b = b64reverseTable[string.charAt(i+1)];
+                byte[] bytes = new byte[1];
+                bytes[0] = (byte) ((a << 2) ^ ((b & 0b00110000) >>> 4));
+                try {
+                    buffer.write(bytes);
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
+                break;
+            }
+            default:
+                throw new RuntimeException("Bad input string format");
+        }
+
+        return buffer.toByteArray();
     }
 }

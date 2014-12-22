@@ -108,7 +108,8 @@
                             (when-let [apt-seq (try (->> sent
                                                          (raw-giga-sentence->graph entity-indexer relation-indexer)
                                                          graph->apts)
-                                                    (catch NumberFormatException e nil))]
+                                                    (catch NumberFormatException e
+                                                      (println "couldn't do sent:\n" sent)))]
 
                               (doseq [[entity-id apt] apt-seq]
                                 (.include accumulative-apt-store entity-id apt)
