@@ -49,8 +49,8 @@
 (def ^:dynamic *rel-map* (persistent! (reduce (fn [acc [base & _ :as things]]
                                                 (reduce (fn [acc thing]
                                                           (assoc! acc
-                                                                  base thing
-                                                                  (str "_" base) (str "_" thing)))
+                                                                  thing base
+                                                                  (str "_" thing) (str "_" base)))
                                                         acc
                                                         things))
                                   (transient {})
