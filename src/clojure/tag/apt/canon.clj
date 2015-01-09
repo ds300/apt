@@ -1,6 +1,5 @@
 (ns tag.apt.canon
-  (:require [clojure.tools.logging :as log]
-            [clojure.java.io :as io]))
+  (:require [clojure.tools.logging :as log]))
 
 (set! *warn-on-reflection* true)
 
@@ -41,9 +40,7 @@
 )
 
 (defn canonicalise-pos-tag [tag]
-  (or (*pos-map* tag)
-      (do (log/warn "unrecognized pos tag: " tag)
-          "PUNCT")))
+  (*pos-map* tag tag))
 
 
 (def ^:dynamic *rel-map* (persistent! (reduce (fn [acc [base & _ :as things]]
@@ -65,6 +62,7 @@
                                     "acomp"
                                     "ccomp"
                                     "xcomp"
+                                    "pcomp"
                                     "obj"
                                     "dobj"
                                     "iobj"
@@ -75,6 +73,7 @@
                                     "csubj"
                                     "csubjpass"]
                                    ["conj"]
+                                   ["cc"]
                                    ["expl"]
                                    ["mod"
                                     "amod"
@@ -87,6 +86,7 @@
                                     "mwe"
                                     "mark"
                                     "advmod"
+                                    "neg"
                                     "rcmod"
                                     "quantmod"
                                     "nn"
