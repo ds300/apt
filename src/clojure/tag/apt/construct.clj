@@ -35,13 +35,18 @@
       (aset ids i eid))
     graph))
 
-(defn raw-sentence->indexed-sentence [^Indexer entity-indexer ^Indexer relation-indexer sentence]
-  (mapv (fn [[entity-offset entity governor-offset relation]]
-          [(util/to-int entity-offset)
-           (.getIndex entity-indexer entity)
-           (util/to-int governor-offset)
-           (.getIndex relation-indexer relation)])
-        sentence))
+(defn raw-sentence->graph [^Indexer entity-indexer ^Indexer relation-indexer sentence]
+  (let [graph (RGraph. (count sentence))
+        ids (.entityIds graph)]
+    (doseq [[^String i entity ^String gov-offset dep] sentence]
+      (let [i (dec (Integer. i))]
+        (aset ids i (.getIndex entity-indexer entity))
+        (when (not-empty gov-offset)
+          (.addRelation graph
+                        i
+                        (dec (Integer. gov-offset))
+                        (.getIndex relation-indexer (canon/canonicalise-relation dep))))))
+    graph))
 
 (defn raw-giga-sentence->graph [^Indexer entity-indexer ^Indexer relation-indexer sentence]
   (let [graph (RGraph. (count sentence))
@@ -106,10 +111,11 @@
         path-counter (b/get-path-counter lexicon-descriptor)
         consume-sentence! (fn [sent]
                             (when-let [apt-seq (try (->> sent
-                                                         (raw-giga-sentence->graph entity-indexer relation-indexer)
+                                                         (raw-sentence->graph entity-indexer relation-indexer)
                                                          graph->apts)
                                                     (catch NumberFormatException e
-                                                      (println "couldn't do sent:\n" sent)))]
+                                                      (locking *out*
+                                                        (println "couldn't do sent:\n" sent))))]
 
                               (doseq [[entity-id apt] apt-seq]
                                 (.include accumulative-apt-store entity-id apt)

@@ -1,9 +1,11 @@
 (ns tag.apt.ppmi
   (:require [tag.apt.util :as util]
-            [tag.apt.core :as apt])
-  (:import (uk.ac.susx.tag.apt APTFactory APTVisitor ArrayAPT$ScoreMerger2 ArrayAPT$EdgeMergePolicy
-                               Int2FloatArraySortedMap))
-  (:import (uk.ac.susx.tag.apt BidirectionalIndexer APT ArrayAPT APTFactory)))
+            [tag.apt.core :as apt]
+            [tag.apt.backend :as b]
+            [tag.apt.backend.leveldb :as leveldb])
+  (:import (uk.ac.susx.tag.apt APTVisitor ArrayAPT$ScoreMerger2
+                               Int2FloatArraySortedMap LRUCachedAPTStore ArrayAPT$EdgeMergePolicy LRUCachedAPTStore$Builder))
+  (:import (uk.ac.susx.tag.apt BidirectionalIndexer APT ArrayAPT)))
 
 (set! *warn-on-reflection* true)
 
@@ -60,9 +62,27 @@
                                            numerator (/ n s)
                                            denomintator (/ count:w'->r->* count:*->p->*)]
                                        (Math/log (float (/ numerator denomintator))))))]
-          (Int2FloatArraySortedMap. (.keys scores) newvals))))))
+          (Int2FloatArraySortedMap. (.keys scores) newvals))))
+    ArrayAPT$EdgeMergePolicy/MERGE_WITH_EMPTY))
 
 (defn convert-lexicon [input-lexicon output-lexicon path-counts]
   (doseq [[w w-apt] (seq input-lexicon)]
     (.put output-lexicon w (freq->pmi input-lexicon path-counts w-apt))))
 
+(defn lru-store [items backend]
+  (-> (LRUCachedAPTStore$Builder.)
+      (.setMaxDepth Integer/MAX_VALUE)
+      (.setFactory ArrayAPT/factory)
+      (.setBackend backend)
+      (.setMaxItems items)
+      (.build)))
+
+(defn -main [input-dir output-dir]
+  (let [input-descriptor (b/lexicon-descriptor input-dir)
+        input-byte-store (leveldb/from-descriptor input-descriptor)
+        output-descriptor (b/lexicon-descriptor output-dir)
+        output-byte-store (leveldb/from-descriptor output-descriptor)
+        path-counts (b/get-path-counts input-descriptor)]
+    (with-open [input-lexicon (lru-store 100000 input-byte-store)
+                output-lexicon (lru-store 100 output-byte-store)]
+      (convert-lexicon input-lexicon output-lexicon path-counts))))
