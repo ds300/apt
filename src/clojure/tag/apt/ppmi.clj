@@ -4,15 +4,15 @@
             [tag.apt.backend :as b]
             [tag.apt.backend.leveldb :as leveldb])
   (:import (uk.ac.susx.tag.apt APTVisitor ArrayAPT$ScoreMerger2
-                               Int2FloatArraySortedMap LRUCachedAPTStore ArrayAPT$EdgeMergePolicy LRUCachedAPTStore$Builder))
-  (:import (uk.ac.susx.tag.apt BidirectionalIndexer APT ArrayAPT)))
+                               Int2FloatArraySortedMap LRUCachedAPTStore ArrayAPT$EdgeMergePolicy LRUCachedAPTStore$Builder APTFactory PersistentKVStore))
+  (:import (uk.ac.susx.tag.apt BidirectionalIndexer APT ArrayAPT APTFactory)))
 
 (set! *warn-on-reflection* true)
 
 (defn from-path
   "delves into an apt strucutre, returning a node at path from apt,
    creating empty nodes if they do not exist"
-  [apt [r & more :as path]]
+  [^APT apt [r & more :as path]]
   (if r
     (if-let [rapt (.getChild apt r)]
       (from-path rapt more)
@@ -43,7 +43,7 @@
 ;    |  -----------  |
 ;     \ P(*->p->*)  /       ; use path-counts shim
 ; )
-(defn freq->pmi [lexicon path-counts apt]
+(defn freq->pmi [^PersistentKVStore lexicon path-counts apt]
   ; use the merge facility as a convenient way to traverse an APT while building a new one
   ; TODO: culling scores that fall below some threshold (e.g. 0 in the case of ppmi)
   (ArrayAPT/merge2
@@ -66,8 +66,20 @@
     ArrayAPT$EdgeMergePolicy/MERGE_WITH_EMPTY))
 
 (defn convert-lexicon [input-lexicon output-lexicon path-counts]
-  (doseq [[w w-apt] (seq input-lexicon)]
-    (.put output-lexicon w (freq->pmi input-lexicon path-counts w-apt))))
+  (let [apts-processed (atom 0)
+        last-report-time (atom (System/currentTimeMillis))]
+    ; setup reporter
+    (add-watch apts-processed
+               :reporter
+               (fn [_ _ _ new-val]
+                 (let [current-time (System/currentTimeMillis)]
+                   (when (= 0 (mod new-val 10))
+                     (println "done" new-val "apts." (float (/ 10 (/ (- current-time @last-report-time) 1000))) "apts/s.")
+                     (reset! last-report-time current-time)))))
+
+    (doseq [[w w-apt] (seq input-lexicon)]
+      (.put output-lexicon w (freq->pmi input-lexicon path-counts w-apt))
+      (swap! apts-processed inc))))
 
 (defn lru-store [items backend]
   (-> (LRUCachedAPTStore$Builder.)

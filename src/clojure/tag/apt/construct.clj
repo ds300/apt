@@ -111,7 +111,7 @@
         path-counter (b/get-path-counter lexicon-descriptor)
         consume-sentence! (fn [sent]
                             (when-let [apt-seq (try (->> sent
-                                                         (raw-sentence->graph entity-indexer relation-indexer)
+                                                         (raw-giga-sentence->graph entity-indexer relation-indexer)
                                                          graph->apts)
                                                     (catch NumberFormatException e
                                                       (locking *out*

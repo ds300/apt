@@ -4,6 +4,7 @@
   (:import [org.iq80.leveldb Options DB]
            [org.iq80.leveldb.impl Iq80DBFactory]
            [org.fusesource.leveldbjni JniDBFactory]
+           [org.fusesource.leveldbjni.internal JniDBIterator]
            (uk.ac.susx.tag.apt PersistentKVStore Util)))
 
 (set! *warn-on-reflection* true)
@@ -42,6 +43,8 @@
              false)))
        (iterator [this]
          (let [^Iterator delegate (locking this (.iterator db))]
+           (when (instance? JniDBIterator delegate)
+             (.seekToFirst delegate))
            (reify Iterator
              (hasNext [_]
                (.hasNext delegate))

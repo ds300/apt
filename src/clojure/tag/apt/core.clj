@@ -135,7 +135,7 @@
 (declare get-path-count*)
 (declare to-map)
 
-(deftype pctuple [^AtomicLong countatom kids]
+(deftype PCTuple [^AtomicLong countatom kids]
   PathCounter
   (count-path! [this path n]
     (count-path!* this path (alength ^ints path) (int 0) n))
@@ -144,28 +144,28 @@
   IDeref
   (deref [this] (to-map this)))
 
-(defn- count-path!* [^pctuple tup ^ints path ^Integer pathlength ^Integer offset ^Integer n]
+(defn- count-path!* [^PCTuple tup ^ints path ^Integer pathlength ^Integer offset ^Integer n]
   (if (= offset pathlength)
     (.addAndGet ^AtomicLong (.countatom tup) n)
     (let [kid-id (aget path offset)]
-      (if-let [^pctuple kid (get @(.kids tup) kid-id)]
+      (if-let [^PCTuple kid (get @(.kids tup) kid-id)]
         (recur kid path pathlength (inc offset) n)
         (do (swap! (.kids tup) (fn [state]
                                  (if-let [existing (get state kid-id)]
                                    state
-                                   (assoc state kid-id (->pctuple (AtomicLong. 0) (atom {}))))))
+                                   (assoc state kid-id (->PCTuple (AtomicLong. 0) (atom {}))))))
             (recur (get @(.kids tup) kid-id) path pathlength (inc offset) n))))))
 
-(defn- get-path-count* [^pctuple tup ^ints path ^Integer pathlength ^Integer offset]
+(defn- get-path-count* [^PCTuple tup ^ints path ^Integer pathlength ^Integer offset]
   (if (= offset pathlength)
     (.get ^AtomicLong (.countatom tup))
-    (if-let [^pctuple kid (get @(.kids tup) (aget path offset))]
+    (if-let [^PCTuple kid (get @(.kids tup) (aget path offset))]
       (recur kid path pathlength (inc offset))
       0)))
 
 (defn- to-map [tup]
   (let [acc (atom (transient {}))
-        descend (fn descend [^pctuple tup path]
+        descend (fn descend [^PCTuple tup path]
                   (let [c (.get ^AtomicLong (.countatom tup))]
                     (when (pos? c)
                       (reset! acc (assoc! @acc path c))))
@@ -175,9 +175,9 @@
     (persistent! @acc)))
 
 (defn path-counter2
-  ([init] (reduce-kv #(count-path! %1 (int-array %2) %3) (path-counter2) init))
+  ([init] (reduce-kv #(do (count-path! %1 (int-array %2) %3) %1) (path-counter2) init))
   ([]
-    (->pctuple (AtomicLong. 0) (atom {}))))
+    (->PCTuple (AtomicLong. 0) (atom {}))))
 
 (defn path-counter
   ([] (path-counter {}))
