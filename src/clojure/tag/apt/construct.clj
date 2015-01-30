@@ -1,7 +1,8 @@
 (ns tag.apt.construct
   (:gen-class)
   (:import (uk.ac.susx.tag.apt APTFactory ArrayAPT APTVisitor RGraph PersistentKVStore Indexer AccumulativeAPTStore)
-           (java.io File Reader BufferedReader FileReader))
+           (java.io File Reader BufferedReader FileReader Closeable)
+           (clojure.lang Seqable))
   (:require [tag.apt.util :as util]
             [tag.apt.conll :as conll]
             [tag.apt.canon :as canon]
@@ -68,12 +69,22 @@
          ~@body
          (recur (async/<! ~c))))))
 
+(defn sent-stream [file]
+  (let [file (io/as-file file)
+        in (if (.endsWith ^String (.getName ^File file) ".gz")
+             (util/gz-reader file (* 1024 1024))
+             (BufferedReader. (FileReader. file) (* 1024 1024)))
+        sents (conll/parse in)]
+    (reify
+      Closeable
+        (close [_] (.close in))
+      Seqable
+        (seq [_] sents))))
+
 (defn sent-extractor [file-channel sent-channel]
   (godochan [file file-channel]
-    (with-open [^Reader in (if (.endsWith ^String (.getName ^File file) ".gz")
-                             (util/gz-reader file (* 1024 1024))
-                             (BufferedReader. (FileReader. file) (* 1024 1024)))]
-      (doseq [sent (conll/parse in)]
+    (with-open [sents (sent-stream file)]
+      (doseq [sent sents]
         (async/>! sent-channel sent)))))
 
 

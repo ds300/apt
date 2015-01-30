@@ -71,17 +71,15 @@ public class RGraph {
         relations[numRelations++] = new Relation(dependentIdx, governorIdx, type);
     }
 
-    public boolean hasCycle() {
-        // TODO
-        throw new NotImplementedException();
-    }
-
     /**
      * @return topologically sorted indices into entityIds array
      */
     public int[] sorted () {
         Set<Relation> edges = new HashSet<>();
-        for (Relation r : relations) edges.add(r);
+        for (Relation r : relations) {
+            if (r == null) break;
+            edges.add(r);
+        }
 //      L ← Empty list that will contain the sorted elements
         int[] L = new int[entityIds.length];
         int Li = 0;
@@ -90,6 +88,7 @@ public class RGraph {
         Set<Integer> S = new HashSet<>();
         for (int i=0;i<entityIds.length;i++) S.add(i);
         for (Relation r : relations) {
+            if (r == null) break;
             S.remove(r.dependent);
             if (r.governor < 0) S.add(r.governor);
         }

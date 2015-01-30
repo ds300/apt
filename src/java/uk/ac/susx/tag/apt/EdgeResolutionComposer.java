@@ -51,6 +51,7 @@ public class EdgeResolutionComposer implements APTComposer<ArrayAPT> {
             int entityId = graph.entityIds[index];
 
             for (RGraph.Relation r : graph.relations) {
+                if (r == null) break;
                 if (r.governor < 0) continue;
                 if (direction == Direction.BOTTOM_UP && graph.entityIds[r.dependent] == entityId) {
                     result[r.governor] = resolver.resolve(result[r.governor], result[r.dependent], r.type);
