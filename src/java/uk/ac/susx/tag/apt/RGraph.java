@@ -72,16 +72,25 @@ public class RGraph {
     }
 
     /**
-     * @return topologically sorted indices into entityIds array
+     * @return topologically sorted indices into entityIds array, removes indices that do not participate in relations
      */
     public int[] sorted () {
+        boolean[] paricipatory = new boolean[entityIds.length];
         Set<Relation> edges = new HashSet<>();
         for (Relation r : relations) {
             if (r == null) break;
             edges.add(r);
+            paricipatory[r.dependent] = true;
+            if (r.governor >= 0) {
+                paricipatory[r.governor] = true;
+            }
+        }
+        int numParicipatory = 0;
+        for (boolean b : paricipatory) {
+            if (b) numParicipatory++;
         }
 //      L ← Empty list that will contain the sorted elements
-        int[] L = new int[entityIds.length];
+        int[] L = new int[numParicipatory];
         int Li = 0;
 
 //      S ← Set of all nodes with no incoming edges
@@ -98,7 +107,7 @@ public class RGraph {
             int n = S.iterator().next();
             S.remove(n);
 //          add n to tail of L
-            if (n >= 0) L[Li++] = n;
+            if (n >= 0 && paricipatory[n]) L[Li++] = n;
 //          for each node m with an edge e from n to m do
             outer: for (Relation e : new HashSet<>(edges)) {
                 if (e.governor == n) {

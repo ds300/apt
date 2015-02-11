@@ -111,7 +111,7 @@ public class JeremyComposer extends EdgeResolutionComposer {
                         }
                     }
 
-                    System.out.println("best alpha: " + best_alpha);
+//                    System.out.println("best alpha: " + best_alpha);
 
                     return new Int2FloatArraySortedMap(best_keys, best_vals);
                 }

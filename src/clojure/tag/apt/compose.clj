@@ -87,10 +87,12 @@
         lexicon (v/lru-store 100000 backend)]
     (doseq [f (map io/as-file files)]
       (println "processing" (.getName f))
-      (let [dir io/as-file (str (.getName f) "-composed")]
+      (let [dir (io/as-file (str (.getName f) "-composed"))
+            count (atom 0)]
         (.mkdirs dir)
         (with-open [sents (cons/sent-stream f)]
           (doseq [[idx sent] (indexed sents)]
+            (println "sent " (swap! count inc))
             (let [graph (sent->graph entity-index relation-index sent)
                   composed (.compose composer lexicon graph)
                   root-node (aget composed (first (.sorted graph)))

@@ -445,6 +445,16 @@ public class ArrayAPT implements APT {
         return merge(this, aligned, Integer.MAX_VALUE);
     }
 
+    public ArrayAPT withEdge(final int[] path, APT child) {
+        if (path.length < 1) throw new IllegalArgumentException("path must be longer than 0");
+
+        ArrayAPT toMerge = ensureArrayAPT(child);
+        for (int i = path.length-1; i >= 0; i--) {
+            toMerge = toMerge.withEdge(-path[i], factory.empty()).getChild(-path[i]);
+        }
+        return merge(this, toMerge, Integer.MAX_VALUE);
+    }
+
 
     public static class Labels {
         public int[] tokens;
