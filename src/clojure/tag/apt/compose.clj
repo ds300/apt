@@ -56,8 +56,11 @@
 (defn indexed [seq]
   (map vector (range) seq))
 
-(defn readable-path [^ints path ^Resolver relation-indexer]
-  (str (mapv #(.resolve relation-indexer %) path)))
+(defn readable-path
+  ([^ints path ^Resolver relation-indexer]
+    (apply str (interpose "»" (map #(.resolve relation-indexer %) path))))
+  ([^ints path]
+    (apply str (interpose "»" path))))
 
 (defn get-idx2path-map [composed root-node]
   (let [acc (HashMap.)
@@ -67,7 +70,7 @@
                        (visit [_ path node]
                          (dotimes [i n]
                            (when (identical? node (aget composed i))
-                             (.put acc i path))))))
+                             (.put acc (int i) path))))))
     acc))
 
 (defn -main [lex-dir alpha-lo alpha-hi intervals & files]
@@ -99,8 +102,8 @@
                   idx2path (get-idx2path-map composed root-node)]
               (with-open [out (io/writer (File. dir (str idx ".sent")))]
                 (doseq [[t-idx & _ :as row] sent]
-                  (let [row (if-let [path (.get idx2path t-idx)]
-                              (conj row (str (vec path)) (readable-path path relation-index))
+                  (let [row (if-let [path (.get idx2path (int (dec (Integer. t-idx))))]
+                              (conj row (readable-path path relation-index) (readable-path path))
                               row)]
                     (doseq [s (interpose " " row)]
                       (.write out s))

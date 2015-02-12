@@ -3,4 +3,4 @@
             [tag.apt.compose :refer [-main]]))
 
 
-(apply -main (clojure.string/split "data 0 1 10 testsents.corebasic.conll.txt" #" "))
+(apply -main (clojure.string/split "data 0 1 100 testsents.corebasic.conll.txt" #" "))

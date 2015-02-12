@@ -5,6 +5,7 @@ package uk.ac.susx.tag.apt;
 import it.unimi.dsi.fastutil.ints.*;
 
 import java.io.*;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
@@ -40,50 +41,125 @@ public class ArrayAPT implements APT {
             return new ArrayAPT();
         }
 
+//        @Override
+//        public ArrayAPT[] fromGraph(RGraph graph) {
+//            final ArrayAPT[] result = new ArrayAPT[graph.entityIds.length];
+//
+//            final int numRelations = graph.numRelations;
+//            RGraph.Relation[] relations = graph.relations;
+//
+//            // first iterate over relations and make sure that the tree structure is fully reified
+//            for (int i=0; i<numRelations; i++) {
+//                RGraph.Relation r = relations[i];
+//
+//                // if governor < 0 it is taken to point to the root node
+//                if (r.governor >= 0) {
+//                    // this relation is between two real nodes, so find/make them
+//                    ArrayAPT parent = result[r.governor];
+//                    ArrayAPT child;
+//
+//                    if (parent == null) {
+//                        parent = new ArrayAPT();
+//                        result[r.governor] = parent;
+//                    }
+//
+//                    child = parent.getChild(r.type);
+//
+//                    if (child == null) {
+//                        child = result[r.dependent];
+//
+//                        if (child == null) {
+//                            child = new ArrayAPT();
+//                        }
+//
+//                        parent.insertChild(r.type, child);
+//                    }
+//
+//                    if (result[r.dependent] != child) {
+//                        // todo: merge nodeses
+//                    }
+//
+//                    // now add inverse relation from child to parent
+//
+//                    child.insertChild(-r.type, parent);
+//
+//                    result[r.dependent] = child;
+//
+//                } else {
+//                    // relation governer is root, so just make a new node for the dependent if need be
+//                    if (result[r.dependent] == null)
+//                        result[r.dependent] = new ArrayAPT();
+//                }
+//            }
+//
+//            // now iterate over entity ids and, where appropriate, increment the count at their nodes
+//            for (int i = 0; i < graph.entityIds.length; i++) {
+//                int eid = graph.entityIds[i];
+//                ArrayAPT node = result[i];
+//                if (node != null) {
+//                    if (eid != -1) {
+//                        node.incrementScore(eid, 1);
+//                    } else {
+//                        // -1 is a pseudo entityID which means "This should contribute towards the probability mass, but
+//                        // don't bother actually storing the count."
+//                        node.sum += 1;
+//                    }
+//                }
+//            }
+//
+//            return result;
+//        }
+
+        // this is a stopgap algorithm which solves a problem with the one above. The plan is to implement a merge
+        // step for the above one to fix it's problem, since this one relies on topological sort and is therefore
+        // probably slower.
         @Override
         public ArrayAPT[] fromGraph(RGraph graph) {
-            final ArrayAPT[] result = new ArrayAPT[graph.entityIds.length];
+            ArrayAPT[] result = new ArrayAPT[graph.entityIds.length];
+            int[] sortedIndices = graph.sorted();
+            ArrayList<RGraph.Relation>[] outgoingEdges = new ArrayList[graph.entityIds.length];
 
-            final int numRelations = graph.numRelations;
-            RGraph.Relation[] relations = graph.relations;
-
-            // first iterate over relations and make sure that the tree structure is fully reified
-            for (int i=0; i<numRelations; i++) {
-                RGraph.Relation r = relations[i];
-
-                // if governor < 0 it is taken to point to the root node
-                if (r.governor >= 0) {
-                    // this relation is between two real nodes, so find/make them
-                    ArrayAPT parent = result[r.governor];
-                    ArrayAPT child;
-
-                    if (parent == null) {
-                        parent = new ArrayAPT();
-                        result[r.governor] = parent;
+            for (RGraph.Relation r : graph.relations) {
+                if (r == null) break;
+                int gov = r.governor;
+                if (gov >= 0) {
+                    if (outgoingEdges[gov] == null) {
+                        outgoingEdges[gov] = new ArrayList<>(5);
                     }
+                    outgoingEdges[gov].add(r);
+                }
+            }
 
-                    child = parent.getChild(r.type);
+            for (int index : sortedIndices) {
+                ArrayList<RGraph.Relation> outgoings = outgoingEdges[index];
+                if (outgoings != null) {
+                    for (RGraph.Relation r : outgoings) {
+                        ArrayAPT parent = result[index];
+                        ArrayAPT child;
 
-                    if (child == null) {
-                        child = result[r.dependent];
-
-                        if (child == null) {
-                            child = new ArrayAPT();
+                        if (parent == null) {
+                            parent = new ArrayAPT();
+                            result[index] = parent;
                         }
 
-                        parent.insertChild(r.type, child);
+                        child = parent.getChild(r.type);
+
+                        if (child == null) {
+                            child = result[r.dependent];
+
+                            if (child == null) {
+                                child = new ArrayAPT();
+                            }
+
+                            parent.insertChild(r.type, child);
+                        }
+
+                        // now add inverse relation from child to parent
+
+                        child.insertChild(-r.type, parent);
+
+                        result[r.dependent] = child;
                     }
-
-                    // now add inverse relation from child to parent
-
-                    child.insertChild(-r.type, parent);
-
-                    result[r.dependent] = child;
-
-                } else {
-                    // relation governer is root, so just make a new node for the dependent if need be
-                    if (result[r.dependent] == null)
-                        result[r.dependent] = new ArrayAPT();
                 }
             }
 
@@ -103,6 +179,7 @@ public class ArrayAPT implements APT {
             }
 
             return result;
+
         }
     }
 
