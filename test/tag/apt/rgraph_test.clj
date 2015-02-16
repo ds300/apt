@@ -14,6 +14,7 @@
         (is (indices n))))))
 
 (deftest topological-sort-perf
-  (time (dorun (pmap #(.sorted ^RGraph %) (repeat 2000000 data/big-graph)))))
+  (time (dorun (pmap #(.sorted ^RGraph %) (repeat 2000000 data/big-graph))))
+  )
 
-
+(topological-sort-perf)

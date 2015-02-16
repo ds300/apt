@@ -1,9 +1,6 @@
 package uk.ac.susx.tag.apt;
 
-import it.unimi.dsi.fastutil.ints.IntArraySet;
 import it.unimi.dsi.fastutil.objects.ObjectArraySet;
-import org.eclipse.jetty.setuid.RLimit;
-import sun.reflect.generics.reflectiveObjects.NotImplementedException;
 
 import java.util.Arrays;
 import java.util.HashSet;
@@ -72,6 +69,8 @@ public class RGraph {
             System.arraycopy(relations, 0, newRelations, 0, relations.length);
             relations = newRelations;
         }
+        // just assume nobody will add the same relation twice for now
+        // todo: decide whether to check
         relations[numRelations++] = new Relation(dependentIdx, governorIdx, type);
     }
 
@@ -90,64 +89,88 @@ public class RGraph {
         return a;
     }
 
-    private static ThreadLocal<ObjectArraySet<Relation>> edgeses = new ThreadLocal<>();
+    private static class RelationArraySet {
+        Relation[] rels;
+        int size = 0;
 
-    private ObjectArraySet<Relation> getEdgesSet () {
-        ObjectArraySet<Relation> s = edgeses.get();
-        if (s == null) {
-            s = new ObjectArraySet<>(numRelations << 1);
-            edgeses.set(s);
-        } else {
-            s.clear();
+        RelationArraySet (int n) {
+            rels = new Relation[n];
         }
+
+        void remove(int i) {
+            size--;
+            if (i != size) {
+                rels[i] = rels[size];
+            }
+        }
+
+        boolean isEmpty() {
+            return size == 0;
+        }
+
+        void clear() {
+            size = 0;
+        }
+    }
+
+    private static ThreadLocal<RelationArraySet> edgeses = new ThreadLocal<>();
+
+    private RelationArraySet getEdgesSet () {
+        RelationArraySet s = edgeses.get();
+        if (s == null || s.rels.length < numRelations) {
+            s = new RelationArraySet(numRelations << 1);
+            edgeses.set(s);
+        }
+        s.size = numRelations;
+        System.arraycopy(relations, 0, s.rels, 0, numRelations);
         return s;
     }
 
-    private static class intarrayset {
+    private static class IntArraySet {
         int[] ints;
-        int offset = 0;
-        intarrayset(int n) {
+        int size = 0;
+        IntArraySet(int n) {
             ints = new int[n];
         }
         void add(int a) {
-            for (int i=0; i<offset; i++) {
+            for (int i=0; i< size; i++) {
                 if (ints[i] == a) return;
             }
-            ints[offset++] = a;
+            ints[size++] = a;
         }
         void remove(int a) {
-            for (int i=0; i<offset; i++) {
+            for (int i=0; i< size; i++) {
                 if (ints[i] == a) {
-                    if (i < offset - 1) {
-                        ints[i] = ints[offset-1];
+                    if (i < size - 1) {
+                        ints[i] = ints[size -1];
                     }
-                    offset--;
+                    size--;
                     return;
                 }
             }
         }
         int removeAndGet() {
-            if (offset > 0) {
-                offset--;
-                return ints[offset];
+            if (size > 0) {
+                size--;
+                return ints[size];
             } else {
                 throw new IllegalStateException("can't remove from empty set");
             }
         }
         void clear() {
-            offset = 0;
+            size = 0;
         }
         boolean isEmpty () {
-            return offset == 0;
+            return size == 0;
         }
     }
 
-    private static ThreadLocal<intarrayset> nodeses = new ThreadLocal<>();
+    private static ThreadLocal<IntArraySet> nodeses = new ThreadLocal<>();
 
-    private intarrayset getNodesSet () {
-        intarrayset s = nodeses.get();
-        if (s == null) {
-            s = new intarrayset(entityIds.length << 1);
+    private IntArraySet getNodesSet () {
+        IntArraySet s = nodeses.get();
+        if (s == null || s.ints.length < entityIds.length) {
+            s = new IntArraySet(entityIds.length << 1);
             nodeses.set(s);
         } else {
             s.clear();
@@ -161,10 +184,9 @@ public class RGraph {
     public int[] sorted () {
         boolean[] paricipatory = getParticipatoryArray();
         int numParicipatory = 0;
-        ObjectArraySet<Relation> edges = getEdgesSet();
+        RelationArraySet edges = getEdgesSet();
         for (Relation r : relations) {
             if (r == null) break;
-            edges.add(r);
             if (!paricipatory[r.dependent]) {
                 numParicipatory++;
                 paricipatory[r.dependent] = true;
@@ -179,7 +201,7 @@ public class RGraph {
         int Li = 0;
 
 //      S ← Set of all nodes with no incoming edges
-        intarrayset S = getNodesSet();
+        IntArraySet S = getNodesSet();
         for (int i=0;i<entityIds.length;i++) {
             if (paricipatory[i]) {
                 S.add(i);
@@ -198,12 +220,15 @@ public class RGraph {
 //          add n to tail of L
             if (n >= 0 && paricipatory[n]) L[Li++] = n;
 //          for each node m with an edge e from n to m do
-            outer: for (Relation e : new HashSet<>(edges)) {
+            outer: for (int i=edges.size - 1;i>=0;i--) {
+                Relation e = edges.rels[i];
                 if (e.governor == n) {
 //                  remove edge e from the graph
-                    edges.remove(e);
+                    edges.remove(i);
 //                  if m has no other incoming edges then insert m into S
-                    for (Relation r : edges) if (r.dependent == e.dependent) continue outer;
+                    for (int j=edges.size-1;j>=0;j--) {
+                        if (edges.rels[j].dependent == e.dependent) continue outer;
+                    }
                     S.add(e.dependent);
                 }
             }
