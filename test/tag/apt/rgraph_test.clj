@@ -13,3 +13,7 @@
       (doseq [n (range (count (.entityIds g)))]
         (is (indices n))))))
 
+(deftest topological-sort-perf
+  (time (dorun (pmap #(.sorted ^RGraph %) (repeat 2000000 data/big-graph)))))
+
+
