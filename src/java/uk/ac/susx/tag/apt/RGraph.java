@@ -12,7 +12,8 @@ import java.util.Set;
  */
 public class RGraph {
     /**
-     * A Relation represents a typed, directed relationship between two entities
+     * A Relation represents a typed, directed relationship between two entities.
+     * The relationship extends from the governor to the dependent.
      */
     public class Relation {
         public final int dependent;
@@ -36,8 +37,13 @@ public class RGraph {
      * An array of the unique ids of the entities involved in this graph
      */
     public final int[] entityIds;
+
+    /**
+     * The relations (edges) of the graph. This array may not be full, but will always be
+     * packed. Iterate over it from 0 to numRelations, or until a null value is observed.
+     */
     public Relation[] relations;
-    int numRelations = 0;
+    public int numRelations = 0;
 
     /**
      * Constructs a new RGraph designed to hold {@code numEntities} entities
@@ -139,6 +145,7 @@ public class RGraph {
             ints[size++] = a;
         }
         void remove(int a) {
+            // a being the value, not the index. Hence the search below.
             for (int i=0; i< size; i++) {
                 if (ints[i] == a) {
                     if (i < size - 1) {

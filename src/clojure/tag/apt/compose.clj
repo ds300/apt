@@ -14,9 +14,6 @@
 
 (set! *warn-on-reflection* true)
 
-(defn parse-file [f]
-  (conll/parse (io/reader f)))
-
 (defn sent->graph [^Indexer entity-indexer ^Indexer relation-indexer sentence]
   (let [graph (RGraph. (count sentence))
         ids (.entityIds graph)]
