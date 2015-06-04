@@ -94,7 +94,6 @@ public class EdgeResolutionComposer implements APTComposer<ArrayAPT> {
             }
         }
 
-
         ArrayAPT[] result = new ArrayAPT[graph.entityIds.length];
         for (int i=0; i<graph.entityIds.length; i++) {
             result[i] = ArrayAPT.ensureArrayAPT(lexicon.get(graph.entityIds[i]));
@@ -127,40 +126,6 @@ public class EdgeResolutionComposer implements APTComposer<ArrayAPT> {
                 }
             }
         }
-
-//        if (direction == Direction.BOTTOM_UP) reverseIntArray(sortedIndices);
-//        ArrayAPT[] result = new ArrayAPT[graph.entityIds.length];
-//        for (int i=0; i<graph.entityIds.length; i++) {
-//            result[i] = ArrayAPT.ensureArrayAPT(lexicon.get(graph.entityIds[i]));
-//        }
-//
-//        for (int i=0; i<sortedIndices.length; i++) {
-//            int index = sortedIndices[i];
-//            // todo: put relaltions in more sensible order to avoid wasted iterations here
-//            for (RGraph.Relation r : graph.relations) {
-//                if (r == null) break;
-//                if (r.governor < 0) continue;
-//                ArrayAPT root;
-//                if (direction == Direction.BOTTOM_UP && r.dependent == index) {
-//                    result[r.governor] = resolver.resolve(result[r.governor], result[r.dependent], r.type);
-//                    root = result[r.governor].getChildAt(reversedPath(pathFromRoot[index]));
-//                    if (root == null) root = ArrayAPT.factory.empty().withEdge(pathFromRoot[index], result[r.governor]);
-//                } else if (direction == Direction.TOP_DOWN && r.governor == index) {
-//                    result[r.dependent] = resolver.resolve(result[r.dependent], result[r.governor], -r.type);
-//                    root = result[r.dependent].getChildAt(reversedPath(pathFromRoot[index]));
-//                    if (root == null) root = ArrayAPT.factory.empty().withEdge(pathFromRoot[index], result[r.dependent]);
-//                } else {
-//                    continue;
-//                }
-//                for (int j=i-1; j >=0; j--) {
-//                    int idx = sortedIndices[j];
-//                    result[idx] = root.getChildAt(pathFromRoot[idx]);
-//                    if (result[idx] == null) {
-//                        result[idx] = ArrayAPT.factory.empty().withEdge(reversedPath(pathFromRoot[idx]), root);
-//                    }
-//                }
-//            }
-//        }
 
         return result;
     }
