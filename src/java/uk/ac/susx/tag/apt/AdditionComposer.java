@@ -16,7 +16,7 @@ public class AdditionComposer extends EdgeResolutionComposer {
                 int ai = 0, bi = 0, i = 0;
                 while (ai < a.keys.length && bi < b.keys.length) {
                     if (a.keys[ai] == b.keys[bi]) {
-                        keys[i] = keys[ai];
+                        keys[i] = a.keys[ai];
                         vals[i] = a.vals[ai] + b.vals[bi];
 
                         ai++;
@@ -54,6 +54,6 @@ public class AdditionComposer extends EdgeResolutionComposer {
                 return new Int2FloatArraySortedMap(Arrays.copyOf(keys, i), Arrays.copyOf(vals, i));
 
             }
-        }), Direction.BOTTOM_UP);
+        }), Direction.TOP_DOWN);
     }
 }

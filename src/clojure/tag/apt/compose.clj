@@ -78,7 +78,7 @@
     :validate [pos? "Must be positive"]]])
 
 (defn -main [& args]
-  (let [{:keys [options, arguments]} (cli/parse-options args cli-options)
+  (let [{:keys [options, arguments]} (cli/parse-opts args cli-options)
         [lex-dir & files] arguments
         desc (b/lexicon-descriptor lex-dir)
         composer (AdditionComposer.)
