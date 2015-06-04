@@ -4,6 +4,7 @@
   :license {:name "Apache License Version 2.0"
             :url "http://www.apache.org/licenses/LICENSE-2.0"}
   :dependencies [[org.clojure/clojure "1.6.0"]
+                 [org.clojure/tools.cli "0.3.1"]
                  [com.google.guava/guava "16.0.1"]
                  [it.unimi.dsi/fastutil "6.5.7"]
                  [org.deeplearning4j/deeplearning4j-nlp "0.0.3.2.5"]

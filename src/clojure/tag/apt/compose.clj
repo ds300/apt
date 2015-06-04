@@ -1,13 +1,14 @@
 (ns tag.apt.compose
   (:require [tag.apt.backend :as b]
             [tag.apt.conll :as conll]
+            [clojure.tools.cli :as cli]
             [tag.apt.construct :as cons]
             [tag.apt.vectors :as v]
             [clojure.java.io :as io]
             [tag.apt.backend.leveldb :as leveldb]
             [tag.apt.canon :as canon])
   (:import (uk.ac.susx.tag.apt LRUCachedAPTStore$Builder ArrayAPT Indexer RGraph)
-           (uk.ac.susx.tag.apt JeremyComposer$Builder APTComposer Util APTVisitor Resolver)
+           (uk.ac.susx.tag.apt JeremyComposer$Builder APTComposer Util APTVisitor Resolver AdditionComposer)
            (java.util.zip GZIPOutputStream)
            (java.io ByteArrayOutputStream File)
            (java.util HashMap)))
@@ -70,21 +71,21 @@
                              (.put acc (int i) path))))))
     acc))
 
-(defn -main [lex-dir alpha-lo alpha-hi intervals & files]
-  (let [desc (b/lexicon-descriptor lex-dir)
-        [alpha-lo alpha-hi] (minmax (Float. alpha-lo) (Float. alpha-hi))
-        intervals (Integer. intervals)
-        composer (do
-                   (validate (<= 0.0 alpha-lo alpha-hi 1.0) "alpha values must be between 0 and 1 inclusive, you gave" alpha-lo "and" alpha-hi)
-                   (validate (pos? intervals) "number of intervals must be >= 1")
-                   (-> (JeremyComposer$Builder.)
-                       (.alpha alpha-lo alpha-hi intervals)
-                       (.topDown)
-                       (.build)))
+(def cli-options
+  [["-s" "--cache-size SIZE" "Max number of APTs in lexicon cache"
+    :default 100000
+    :parse #(Integer. %)
+    :validate [pos? "Must be positive"]]])
+
+(defn -main [& args]
+  (let [{:keys [options, arguments]} (cli/parse-options args cli-options)
+        [lex-dir & files] arguments
+        desc (b/lexicon-descriptor lex-dir)
+        composer (AdditionComposer.)
         entity-index (b/get-entity-index desc)
         relation-index (b/get-relation-index desc)
         backend (leveldb/from-descriptor desc)
-        lexicon (v/lru-store 100000 backend)]
+        lexicon (v/lru-store (:cache-size options) backend)]
     (doseq [f (map io/as-file files)]
       (println "processing" (.getName f))
       (let [dir (io/as-file (str (.getName f) "-composed"))
