@@ -28,11 +28,13 @@
       BidirectionalIndexer
       (getIndex [this s]
         (if (.startsWith ^String s "_")
-          (let [rel (.substring ^String s 1)]
-            (- (or (get (.val2idx ^BidirectionalIndex @state) rel)
-                   (dec (.next ^BidirectionalIndex (swap! state put! rel))))))
-          (or (get (.val2idx ^BidirectionalIndex @state) s)
-              (dec (.next ^BidirectionalIndex (swap! state put! s))))))
+          (- (.getIndex this (.substring ^String s 1)))
+          (let [idx (get (.val2idx ^BidirectionalIndex @state) s)]
+            (or idx
+                (locking state
+                  (let [idx (get (.val2idx ^BidirectionalIndex @state) s)]
+                    (or idx
+                        (dec (.next ^BidirectionalIndex (swap! state put! s))))))))))
 
       (hasIndex [this s]
         (boolean (get (.val2idx ^BidirectionalIndex @state) s)))
@@ -72,7 +74,9 @@
       BidirectionalIndexer
       (getIndex [this s]
         (or (get (.val2idx ^BidirectionalIndex @state) s)
-            (dec (.next ^BidirectionalIndex (swap! state put! s)))))
+            (locking state
+              (or (get (.val2idx ^BidirectionalIndex @state) s)
+                  (dec (.next ^BidirectionalIndex (swap! state put! s)))))))
 
       (hasIndex [this s]
         (boolean (get (.val2idx ^BidirectionalIndex @state) s)))
