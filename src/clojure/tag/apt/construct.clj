@@ -46,7 +46,7 @@
           (.addRelation graph
                         i
                         (dec (Integer. gov-offset))
-                        (.getIndex relation-indexer (canon/canonicalise-relation dep))))))
+                        (.getIndex relation-indexer dep)))))
     graph))
 
 (defn raw-giga-sentence->graph [^Indexer entity-indexer ^Indexer relation-indexer sentence]
@@ -122,7 +122,7 @@
         path-counter (b/get-path-counter lexicon-descriptor)
         consume-sentence! (fn [sent]
                             (when-let [apt-seq (try (->> sent
-                                                         (raw-giga-sentence->graph entity-indexer relation-indexer)
+                                                         (raw-sentence->graph entity-indexer relation-indexer)
                                                          graph->apts)
                                                     (catch NumberFormatException e
                                                       (locking *out*

@@ -59,7 +59,6 @@
   (doseq [f fileses]
     (util/copy (file from-descriptor f) (file to-descriptor f))))
 
-
 (defn get-entity-index [descriptor]
   (apt/indexer (get-indexer-map (file descriptor :entity-index-filename))))
 
