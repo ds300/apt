@@ -91,8 +91,8 @@
       (let [dir (io/as-file (str (.getName f) "-composed"))
             count (atom 0)]
         (.mkdirs dir)
-        (with-open [sents (cons/sent-stream f)]
-          (doseq [[idx sent] (indexed sents)]
+        (with-open [in (cons/open-file f)]
+          (doseq [[idx sent] (indexed (conll/parse in))]
             (println "sent " (swap! count inc))
             (let [graph (sent->graph entity-index relation-index sent)
                   composed (.compose composer lexicon graph)

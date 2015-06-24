@@ -2,10 +2,6 @@ package uk.ac.susx.tag.apt;
 
 import clojure.lang.APersistentMap;
 import clojure.lang.PersistentHashMap;
-import com.google.common.cache.CacheBuilder;
-import com.google.common.cache.LoadingCache;
-import com.google.common.cache.RemovalListener;
-import com.google.common.cache.RemovalNotification;
 
 import java.io.IOException;
 import java.util.Map;
@@ -107,7 +103,6 @@ public class AccumulativeAPTStore implements AutoCloseable {
             AccumulativeLazyAPT apt = (AccumulativeLazyAPT) e.getValue();
             pool.submit(new PutTask(k, apt));
         }
-        m = null;
         pool.shutdown();
         try {
             pool.awaitTermination(1, TimeUnit.DAYS);

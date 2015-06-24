@@ -69,25 +69,17 @@
          ~@body
          (recur (async/<! ~c))))))
 
-(defn sent-stream [file]
-  (let [file (io/as-file file)
-        in (if (.endsWith ^String (.getName ^File file) ".gz")
-             (util/gz-reader file (* 1024 1024))
-             (BufferedReader. (FileReader. file) (* 1024 1024)))
-        sents (conll/parse in)]
-    (reify
-      Closeable
-        (close [_] (.close in))
-      Seqable
-        (seq [_] sents))))
+(defn open-file [file]
+  (let [file (io/as-file file)]
+    (if (.endsWith ^String (.getName ^File file) ".gz")
+      (util/gz-reader file (* 1024 1024))
+      (BufferedReader. (FileReader. file) (* 1024 1024)))))
 
 (defn sent-extractor [file-channel sent-channel]
   (godochan [file file-channel]
-    (with-open [sents (sent-stream file)]
-      (doseq [sent sents]
+    (with-open [in (open-file file)]
+      (doseq [sent (conll/parse in)]
         (async/>! sent-channel sent)))))
-
-
 
 (defn- get-input-files [dir-or-file]
   (let [f (io/as-file dir-or-file)]
@@ -133,13 +125,17 @@
                                 (swap! sum inc)
                                 (count-paths! path-counter apt depth) )
                               (swap! number-of-sentences-processed inc)))
-        file-channel (doto (async/chan)
-                       (async/onto-chan (mapcat get-input-files input-files)))
+        file-channel (async/chan)
         sent-channel (async/chan 1000)
         sent-extractors (take 5 (repeatedly #(sent-extractor file-channel sent-channel)))
         num-sent-consumers (* 2 (.availableProcessors (Runtime/getRuntime)))
         sent-consumers (take num-sent-consumers (repeatedly #(godochan [sent sent-channel] (consume-sentence! sent))))]
     (try
+
+      ; populate file channel
+      (async/go
+        (doseq [file (mapcat get-input-files input-files)]
+          (async/>! file-channel file)))
 
       ; setup reporter
       (add-watch number-of-sentences-processed
