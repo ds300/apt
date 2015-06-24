@@ -135,7 +135,8 @@
       ; populate file channel
       (async/go
         (doseq [file (mapcat get-input-files input-files)]
-          (async/>! file-channel file)))
+          (async/>! file-channel file))
+        (async/close! file-channel))
 
       ; setup reporter
       (add-watch number-of-sentences-processed
