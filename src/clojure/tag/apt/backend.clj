@@ -1,5 +1,7 @@
 (ns tag.apt.backend
-  (:import (java.io Writer File Reader))
+  (:import (java.io Writer File Reader FileInputStream FileOutputStream)
+           (uk.ac.susx.tag.apt AccumulativeLazyAPT ArrayAPT)
+           (java.util.zip GZIPOutputStream))
   (:require [tag.apt.core :as apt]
             [tag.apt.util :as util]
             [clojure.java.io :as io]
@@ -13,12 +15,13 @@
   :relation-index-filename "relation-index.tsv.gz"
   :path-counts-filename "path-counts.tsv.gz"
   :sum-filename "sum"
+  :everything-counts-filename "everything-counts.apt.gz"
 })
 
 (defn lexicon-descriptor [dir]
   (assoc lexicon-descriptor-defaults :dir (io/as-file dir)))
 
-(defn file [{^File dir :dir :as descriptor} filename]
+(defn file ^File [{^File dir :dir :as descriptor} filename]
   (if (keyword? filename)
     (File. dir ^String (filename descriptor))
     (File. dir (str filename))))
@@ -83,3 +86,17 @@
 (defn store-path-counter [descriptor path-counter]
   (store-path-counts descriptor @path-counter))
 
+(defn store-everything-counts [descriptor ^AccumulativeLazyAPT accummulative-apt]
+  (let [out-file ^File (file descriptor :everything-counts-filename)
+        out-bytes (if (.exists out-file)
+                    (.mergeIntoExisting accummulative-apt
+                                        (with-open [in (FileInputStream. out-file)]
+                                          (util/decompress-stream in)))
+                    (.toByteArray accummulative-apt))]
+    (with-open [out (GZIPOutputStream. (FileOutputStream. out-file))]
+      (.write out out-bytes 0 (alength out-bytes)))))
+
+(defn get-everything-counts [descriptor]
+  (.fromByteArray ArrayAPT/factory
+                  (with-open [in (FileInputStream. (file descriptor :everything-counts-filename))]
+                    (util/decompress-stream in))))

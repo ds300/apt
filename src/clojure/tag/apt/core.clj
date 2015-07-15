@@ -183,18 +183,3 @@
   ([]
     (->PCTuple (AtomicLong. 0) (atom {}))))
 
-(defn path-counter
-  ([] (path-counter {}))
-  ([init]
-   (when-not (map? init) (throw (Exception. "path counter init value should be a map")))
-   (let [state (atom init)]
-     (reify
-       PathCounter
-       (count-path! [_ path n]
-         (swap! state update-in [(-ensure-vector path)] (fnil + 0) n))
-       (get-path-count [_ path]
-         (@state (-ensure-vector path)))
-       IDeref
-       (deref [this]
-         @state)))))
-

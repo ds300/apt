@@ -4,7 +4,8 @@
            (java.util.zip GZIPInputStream GZIPOutputStream)
            (clojure.lang IDeref)
            (java.nio.channels FileChannel))
-  (:require [clojure.java.io :as io]))
+  (:require [clojure.java.io :as io]
+            [clojure.core.async :as async]))
 
 (set! *warn-on-reflection* true)
 
@@ -66,20 +67,9 @@
     (when (or overwrite (not (.exists dst)))
       (copy-file src dst))))
 
-(defmacro lazy [& body]
-  "returns a derefable object which, when dereferenced, evaluates body, then stores and returns
-  the result such that subsequent dereferences return the same value"
-  `(let [state# (atom ::unresolved)]
-     (reify IDeref
-       (deref [this#]
-         (locking this#
-           (let [val# @state#]
-             (if (identical? val# ::unresolved)
-               (reset! state# (do ~@body))
-               val#)))))))
-
 (defn compress
-  "compresses a byte array using simple gzip, returning the compressed byte array."
+  "compresses a byte array using simple gzip, returning the compressed byte
+  array."
   [^bytes bytes]
   (let [out (ByteArrayOutputStream. (alength bytes))]
     (doto (GZIPOutputStream. out)
@@ -92,6 +82,18 @@
   "decompresses a gzipped byte array, returning the decompressed byte array"
   [^bytes bytes]
   (let [in (GZIPInputStream. (ByteArrayInputStream. bytes))
+        out (ByteArrayOutputStream.)
+        buf (byte-array 1024)]
+    (loop [numBytes (.read in buf)]
+      (when (> numBytes -1)
+        (.write out buf 0 numBytes)
+        (recur (.read in buf))))
+    (.toByteArray out)))
+
+(defn decompress-stream
+  "decompresses an input stream into a byte array"
+  [in]
+  (let [in (GZIPInputStream. in)
         out (ByteArrayOutputStream.)
         buf (byte-array 1024)]
     (loop [numBytes (.read in buf)]
@@ -116,7 +118,8 @@
   (to-int [val] (Integer. val)))
 
 (defn multiplex
-  "multiplex seqs. like clojure.core/interleave but keeps going if the given seqs are different lengths"
+  "multiplex seqs. like clojure.core/interleave but keeps going if the given
+  seqs are different lengths"
   [& [s & more]]
   (when s
     (lazy-seq
@@ -124,3 +127,12 @@
         (cons (first s) (apply multiplex (concat more (list (rest s)))))
         (apply multiplex more)))))
 
+
+(defmacro godochan
+  "Like doseq, but in a goroutine and for channels"
+  [[s c] & body]
+  `(async/go
+     (loop [~s (async/<! ~c)]
+       (when (not (nil? ~s))
+         ~@body
+         (recur (async/<! ~c))))))

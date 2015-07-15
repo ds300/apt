@@ -13,7 +13,7 @@
                  [org.clojure/core.async "0.1.346.0-17112a-alpha"]
                  [org.fusesource.leveldbjni/leveldbjni-all "1.8"]]
   :main tag.apt.main
-  :javac-options ["-target" "1.7" "-source" "1.7" "-Xlint:-options"]
+  :javac-options ["-target" "1.8" "-source" "1.8" "-Xlint:-options"]
   :repositories [["oracle" "http://download.oracle.com/maven"]
                  ["sonatype" {:url "http://oss.sonatype.org/content/repositories/snapshots"
                               :snapshots true

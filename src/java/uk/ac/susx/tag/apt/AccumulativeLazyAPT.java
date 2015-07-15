@@ -108,7 +108,7 @@ public class AccumulativeLazyAPT implements APT {
         }
     }
 
-    synchronized byte[] mergeIntoExisting (byte[] existing) {
+    public synchronized byte[] mergeIntoExisting (byte[] existing) {
         byte[] bytes = new byte[size() + existing.length]; // (probably slightly bigger than) worst-case size
 //        expected = ArrayAPT.fromByteArray(existing).merged(ArrayAPT.fromByteArray(toByteArray()), Integer.MAX_VALUE).toByteArray();
         int i = mergeIntoExisting(existing, 0, bytes, 0).b;
@@ -326,7 +326,7 @@ public class AccumulativeLazyAPT implements APT {
         return new OffsetTuple(existingOffset + 16 + existingKidsSize + existingEntityScoreSize, bytesOffset + 16 + tokenCountsSize + kidsSize);
     }
 
-    synchronized void merge (APT other, int depth, int returnPath) throws FrozenException {
+    public synchronized void merge (APT other, int depth, int returnPath) throws FrozenException {
 
         if (frozen) throw new FrozenException();
 

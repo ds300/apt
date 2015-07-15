@@ -16,9 +16,9 @@ import uk.ac.susx.mlcl.lib.collect.SparseDoubleVector;
  * @author ds300
  */
 public class ArrayAPT implements APT {
-    private static final int[] EMPTY_INTS = new int[0];
-    private static final float[] EMPTY_FLOATS = new float[0];
-    private static final ArrayAPT[] EMPTY_KIDS = new ArrayAPT[0];
+    static final int[] EMPTY_INTS = new int[0];
+    static final float[] EMPTY_FLOATS = new float[0];
+    static final ArrayAPT[] EMPTY_KIDS = new ArrayAPT[0];
 
     int[] edges  = EMPTY_INTS;
     ArrayAPT[] kids = EMPTY_KIDS;

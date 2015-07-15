@@ -8,7 +8,7 @@
             [tag.apt.backend.leveldb :as leveldb]
             [tag.apt.canon :as canon])
   (:import (uk.ac.susx.tag.apt LRUCachedAPTStore$Builder ArrayAPT Indexer RGraph)
-           (uk.ac.susx.tag.apt JeremyComposer$Builder APTComposer Util APTVisitor Resolver AdditionComposer)
+           (uk.ac.susx.tag.apt JeremyComposer$Builder APTComposer Util APTVisitor Resolver AdditionComposer OverlayComposer OverlayComposer$SumStarCollpaser)
            (java.util.zip GZIPOutputStream)
            (java.io ByteArrayOutputStream File)
            (java.util HashMap)))
@@ -82,6 +82,7 @@
         [lex-dir & files] arguments
         desc (b/lexicon-descriptor lex-dir)
         composer (AdditionComposer.)
+        composer2 (OverlayComposer/sumStar (b/get-everything-counts desc) true)
         entity-index (b/get-entity-index desc)
         relation-index (b/get-relation-index desc)
         backend (leveldb/from-descriptor desc)
@@ -95,7 +96,8 @@
           (doseq [[idx sent] (indexed (conll/parse in))]
             (println "sent " (swap! count inc))
             (let [graph (sent->graph entity-index relation-index sent)
-                  composed (.compose composer lexicon graph)
+                  ;composed (.compose composer lexicon graph)
+                  composed (.compose composer2 lexicon graph)
                   root-node (aget composed (first (.sorted graph)))
                   idx2path (get-idx2path-map composed root-node)]
               (with-open [out (io/writer (File. dir (str idx ".sent")))]
