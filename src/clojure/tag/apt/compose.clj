@@ -13,7 +13,7 @@
            (java.io ByteArrayOutputStream File)
            (java.util HashMap)))
 
-(set! *warn-on-reflection* true)
+;(set! *warn-on-reflection* true)
 
 (defn sent->graph [^Indexer entity-indexer ^Indexer relation-indexer sentence]
   (let [graph (RGraph. (count sentence))
@@ -72,21 +72,34 @@
     acc))
 
 (def cli-options
-  [["-s" "--cache-size SIZE" "Max number of APTs in lexicon cache"
+  [["-c" "--cache-size SIZE" "Max number of APTs in lexicon cache"
     :default 100000
-    :parse #(Integer. %)
-    :validate [pos? "Must be positive"]]])
+    :parse-fn #(Integer. %)
+    :validate [pos? "Must be positive"]]
+   ["-s" "--sum" "Use standard sum method"]
+   ["-p" "--pmi" "Use standard pmi rather than ppmi (only applies to sum* method)"]
+   ["-h" "--help"]])
+
+(defn parse-opts [args]
+  (let [{:keys [options arguments errors summary]} (cli/parse-opts args cli-options)]
+    (if (or (:help options) errors)
+      (do
+        (println "USAGE: apt compose [options] <lexicon-dir> <files...>")
+        (println summary "\n\n" (or errors ""))
+        (System/exit 1))
+      (let [[lex-dir & files] arguments]
+        [lex-dir files options]))))
 
 (defn -main [& args]
-  (let [{:keys [options, arguments]} (cli/parse-opts args cli-options)
-        [lex-dir & files] arguments
+  (let [[lex-dir files {:keys [sum cache-size pmi]}] (parse-opts args)
         desc (b/lexicon-descriptor lex-dir)
-        composer (AdditionComposer.)
-        composer2 (OverlayComposer/sumStar (b/get-everything-counts desc) true)
+        composer (if sum
+                   (OverlayComposer.)
+                   (OverlayComposer/sumStar (b/get-everything-counts desc) (not pmi)))
         entity-index (b/get-entity-index desc)
         relation-index (b/get-relation-index desc)
         backend (leveldb/from-descriptor desc)
-        lexicon (v/lru-store (:cache-size options) backend)]
+        lexicon (v/lru-store cache-size backend)]
     (doseq [f (map io/as-file files)]
       (println "processing" (.getName f))
       (let [dir (io/as-file (str (.getName f) "-composed"))
@@ -96,8 +109,7 @@
           (doseq [[idx sent] (indexed (conll/parse in))]
             (println "sent " (swap! count inc))
             (let [graph (sent->graph entity-index relation-index sent)
-                  ;composed (.compose composer lexicon graph)
-                  composed (.compose composer2 lexicon graph)
+                  composed (.compose composer lexicon graph)
                   root-node (aget composed (first (.sorted graph)))
                   idx2path (get-idx2path-map composed root-node)]
               (with-open [out (io/writer (File. dir (str idx ".sent")))]
