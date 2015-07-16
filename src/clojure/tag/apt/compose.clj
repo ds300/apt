@@ -10,7 +10,7 @@
   (:import (uk.ac.susx.tag.apt LRUCachedAPTStore$Builder ArrayAPT Indexer RGraph)
            (uk.ac.susx.tag.apt JeremyComposer$Builder APTComposer Util APTVisitor Resolver AdditionComposer OverlayComposer OverlayComposer$SumStarCollpaser)
            (java.util.zip GZIPOutputStream)
-           (java.io ByteArrayOutputStream File)
+           (java.io ByteArrayOutputStream File FileOutputStream)
            (java.util HashMap)))
 
 ;(set! *warn-on-reflection* true)
@@ -90,6 +90,14 @@
       (let [[lex-dir & files] arguments]
         [lex-dir files options]))))
 
+(defn pad [num max]
+  (let [digits (count (str max))
+        result (str num)]
+    (loop [result result n (count result)]
+      (if (> digits n)
+        (recur (str "0" result) (inc n))
+        result))))
+
 (defn -main [& args]
   (let [[lex-dir files {:keys [sum cache-size pmi]}] (parse-opts args)
         desc (b/lexicon-descriptor lex-dir)
@@ -106,19 +114,23 @@
             count (atom 0)]
         (.mkdirs dir)
         (with-open [in (cons/open-file f)]
-          (doseq [[idx sent] (indexed (conll/parse in))]
+          (doseq [[idx sent] (indexed (conll/parse in))
+                  :let [idx-padded (pad idx 10000000)]]
             (println "sent " (swap! count inc))
             (let [graph (sent->graph entity-index relation-index sent)
                   composed (.compose composer lexicon graph)
                   root-node (aget composed (first (.sorted graph)))
                   idx2path (get-idx2path-map composed root-node)]
-              (with-open [out (io/writer (File. dir (str idx ".sent")))]
-                (doseq [[t-idx & _ :as row] sent]
+              (with-open [out (io/writer (File. dir (str idx-padded ".sent")))]
+                (doseq [[t-idx & _ :as row] sent
+                        :let [row (vec (take 4 row))]]
                   (let [row (if-let [path (.get idx2path (int (dec (Integer. t-idx))))]
                               (conj row (readable-path path relation-index) (readable-path path))
                               row)]
-                    (doseq [s (interpose " " row)]
+                    (doseq [s (interpose "\t" row)]
                       (.write out s))
-                    (.write out "\n")))
-                (.write out "\n")
-                (.write out (encode root-node))))))))))
+                    (.write out "\n"))))
+              (with-open [out (-> (File. dir (str idx-padded ".apt.gz"))
+                                  (FileOutputStream.)
+                                  (GZIPOutputStream.))]
+                (.write out (.toByteArray root-node))))))))))
