@@ -14,22 +14,50 @@ public class IO {
         return reader(new File(path));
     }
     public static BufferedReader reader(File path) throws IOException {
-        InputStream in = new FileInputStream(path);
-        if (path.getName().endsWith(".gz")) {
-            in = new GZIPInputStream(in);
-        }
-        return new BufferedReader(new InputStreamReader(in));
+        return new BufferedReader(new InputStreamReader(inputStream(path)));
     }
 
     public static BufferedWriter writer(String path) throws IOException {
         return writer(new File(path));
     }
     public static BufferedWriter writer(File file) throws IOException {
+        return new BufferedWriter(new OutputStreamWriter(outputStream(file)));
+    }
+
+    public static InputStream inputStream(File file) throws IOException {
+        InputStream in = new FileInputStream(file);
+        if (file.getName().endsWith(".gz")) {
+            in = new GZIPInputStream(in);
+        }
+        return in;
+    }
+
+    public static OutputStream outputStream(File file) throws IOException {
         OutputStream out = new FileOutputStream(file);
         if (file.getName().endsWith(".gz")) {
             out = new GZIPOutputStream(out);
         }
-        return new BufferedWriter(new OutputStreamWriter(out));
+        return out;
+    }
+
+    public static byte[] getBytes(File file) throws IOException {
+        try (InputStream in = inputStream(file)) {
+            byte[] bytes = new byte[(int) file.length()];
+
+            int numBytesRead = 0;
+
+            while (numBytesRead < bytes.length) {
+                numBytesRead += in.read(bytes, numBytesRead, bytes.length - numBytesRead);
+            }
+
+            return bytes;
+        }
+    }
+
+    public static void putBytes(File file, byte[] bytes) throws IOException {
+        try (OutputStream out = outputStream(file)) {
+            out.write(bytes);
+        }
     }
 
     public static Map<String, Integer> getIndexerMapFromTSVFile(String path) throws IOException {
