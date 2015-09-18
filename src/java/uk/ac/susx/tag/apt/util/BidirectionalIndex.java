@@ -11,7 +11,7 @@ import java.util.Map;
 /**
  * Created by ds300 on 11/09/2015.
  */
-class BidirectionalIndex {
+public class BidirectionalIndex {
     public final IPersistentMap idx2val;
     public final IPersistentMap val2idx;
     public final int nextIdx;

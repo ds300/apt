@@ -7,6 +7,7 @@
 
 
 (defn -main [command & args]
+  (println "doing" command)
   (case command
     "construct" (apply cons/-main args)
     "ppmi" (apply ppmi/-main args)

@@ -1,13 +1,15 @@
 package uk.ac.susx.tag.apt.backend;
 
+import clojure.lang.*;
 import uk.ac.susx.tag.apt.AccumulativeLazyAPT;
 import uk.ac.susx.tag.apt.ArrayAPT;
 import uk.ac.susx.tag.apt.util.IO;
-import uk.ac.susx.tag.apt.util.Indexer;
+import uk.ac.susx.tag.apt.util.IndexerImpl;
 import uk.ac.susx.tag.apt.util.RelationIndexer;
 
 import java.io.File;
 import java.io.IOException;
+import java.io.Writer;
 
 /**
  * Created by ds300 on 11/09/2015.
@@ -85,10 +87,10 @@ public class LexiconDescriptor {
                 f -> RelationIndexer.empty());
     }
 
-    public Indexer getEntityIndexer() throws IOException {
+    public IndexerImpl getEntityIndexer() throws IOException {
         return ifFileExists(entityIndexFilename,
-                f -> Indexer.from(IO.getIndexerMapFromTSVFile(f)),
-                f -> Indexer.empty());
+                f -> IndexerImpl.from(IO.getIndexerMapFromTSVFile(f)),
+                f -> IndexerImpl.empty());
     }
 
     public ArrayAPT getEverythingCounts () throws IOException {
@@ -118,6 +120,30 @@ public class LexiconDescriptor {
         } else {
             otherwise.consume(f);
         }
+    }
+
+    private void storeIndex(String filename, PersistentHashMap val2idx) throws IOException {
+        try (final Writer out = IO.writer(file(filename))) {
+            val2idx.kvreduce(new AFn() {
+                @Override
+                public Object invoke(Object arg1, Object arg2, Object arg3) {
+                    try {
+                        out.write(arg2.toString() + "\t" + arg3.toString() + "\n");
+                    } catch (IOException e) {
+                        throw new RuntimeException(e);
+                    }
+                    return null;
+                }
+            }, null);
+        }
+    }
+
+    public void storeEntityIndexer(IndexerImpl entityIndexer) throws IOException {
+        storeIndex(entityIndexFilename, (PersistentHashMap) entityIndexer.getState().val2idx);
+    }
+
+    public void storeRelationIndexer(RelationIndexer relationIndexer) throws IOException {
+        storeIndex(relationIndexFilename, (PersistentHashMap) relationIndexer.getState().val2idx);
     }
 
     @FunctionalInterface

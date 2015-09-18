@@ -5,20 +5,20 @@ import java.util.Map;
 /**
  * Created by ds300 on 14/09/2015.
  */
-public class Indexer extends AbstractIndexer {
+public class IndexerImpl extends AbstractIndexer {
 
-    private Indexer(BidirectionalIndex index) {
+    private IndexerImpl(BidirectionalIndex index) {
         setState(index);
     }
 
-    private Indexer() {}
+    private IndexerImpl() {}
 
-    public static Indexer from(Map<String, Integer> val2idx) {
-        return new Indexer(BidirectionalIndex.from(val2idx));
+    public static IndexerImpl from(Map<String, Integer> val2idx) {
+        return new IndexerImpl(BidirectionalIndex.from(val2idx));
     }
 
-    public static Indexer empty() {
-        return new Indexer();
+    public static IndexerImpl empty() {
+        return new IndexerImpl();
     }
 
     @Override
