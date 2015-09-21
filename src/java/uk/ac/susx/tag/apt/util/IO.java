@@ -42,15 +42,17 @@ public class IO {
 
     public static byte[] getBytes(File file) throws IOException {
         try (InputStream in = inputStream(file)) {
-            byte[] bytes = new byte[(int) file.length()];
+            ByteArrayOutputStream bytes = new ByteArrayOutputStream();
 
-            int numBytesRead = 0;
+            byte[] buf = new byte[1024 * 1024];
 
-            while (numBytesRead < bytes.length) {
-                numBytesRead += in.read(bytes, numBytesRead, bytes.length - numBytesRead);
+            int numBytesRead;
+
+            while ((numBytesRead = in.read(buf)) != -1) {
+                bytes.write(buf, 0, numBytesRead);
             }
 
-            return bytes;
+            return bytes.toByteArray();
         }
     }
 

@@ -5,10 +5,7 @@ import com.beust.jcommander.Parameter;
 import uk.ac.susx.tag.apt.*;
 import uk.ac.susx.tag.apt.backend.LevelDBByteStore;
 import uk.ac.susx.tag.apt.backend.LexiconDescriptor;
-import uk.ac.susx.tag.apt.util.ConllReader;
-import uk.ac.susx.tag.apt.util.IO;
-import uk.ac.susx.tag.apt.util.IndexerImpl;
-import uk.ac.susx.tag.apt.util.RelationIndexer;
+import uk.ac.susx.tag.apt.util.*;
 
 import java.io.File;
 import java.io.IOException;
@@ -43,6 +40,14 @@ public class Construct {
     final ExecutorService sentenceConsumers;
 
     final AtomicInteger numSentencesProcessed = new AtomicInteger(0);
+    final Daemon reporter = new Daemon(() -> {
+        MemoryReport mr = MemoryReport.get();
+        System.out.printf(
+                "%s Sentences processed. Using %s of %s.\n",
+                numSentencesProcessed.get(),
+                mr.used.humanReadable(),
+                mr.max.humanReadable());
+    }, 5000);
 
     private Construct(LexiconDescriptor descriptor,
                       int depth,
@@ -142,6 +147,7 @@ public class Construct {
     }
 
     void start(int numSentenceExtractors, int numSentenceConsumers) {
+        reporter.start();
         for (int i = 0; i < numSentenceExtractors; i++) {
             sentenceExtractors.submit(new SentenceExtractor());
         }
@@ -154,6 +160,8 @@ public class Construct {
 
     void awaitShutdown(long time, TimeUnit timeUnit) throws InterruptedException {
         sentenceConsumers.awaitTermination(time, timeUnit);
+        reporter.stop();
+        reporter.task.run(); // one last time yo
     }
 
     public static void construct(LexiconDescriptor lexiconDescriptor, int depth, Collection<File> files) throws IOException, InterruptedException {
