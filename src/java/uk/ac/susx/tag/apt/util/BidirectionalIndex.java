@@ -1,12 +1,10 @@
 package uk.ac.susx.tag.apt.util;
 
 
-import clojure.lang.APersistentMap;
-import clojure.lang.IPersistentMap;
-import clojure.lang.ITransientMap;
-import clojure.lang.PersistentHashMap;
+import clojure.lang.*;
 
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * Created by ds300 on 11/09/2015.
@@ -36,18 +34,25 @@ public class BidirectionalIndex {
             PersistentHashMap.EMPTY,
             0);
 
-    public static BidirectionalIndex from(Map<String, Integer> val2idx) {
-        IPersistentMap _val2idx = PersistentHashMap.create(val2idx);
-        ITransientMap _idx2val = PersistentHashMap.EMPTY.asTransient();
-        int maxIdx = 0;
-        for (Map.Entry<String, Integer> e : val2idx.entrySet()) {
-            String val = e.getKey();
-            int idx = e.getValue();
-            if (idx > maxIdx) {
-                maxIdx = idx;
+    public static BidirectionalIndex from(IPersistentMap val2idx) {
+        PersistentHashMap _val2idx = val2idx instanceof PersistentHashMap ? (PersistentHashMap) val2idx : PersistentHashMap.create(val2idx);
+        AtomicInteger maxIdx = new AtomicInteger(0);
+
+        ITransientMap _idx2val = (ITransientMap) _val2idx.kvreduce(new AFn() {
+            @Override
+            public Object invoke(Object arg1, Object arg2, Object arg3) {
+                Integer idx = (Integer) arg3;
+                String val = (String) arg2;
+                ITransientMap idx2val = (ITransientMap) arg1;
+
+                if (idx > maxIdx.get()) {
+                    maxIdx.set(idx);
+                }
+
+                return idx2val.assoc(idx, val);
             }
-            _idx2val = _idx2val.assoc(idx, val);
-        }
-        return new BidirectionalIndex(_val2idx, _idx2val.persistent(), maxIdx + 1);
+        }, PersistentHashMap.EMPTY.asTransient());
+
+        return new BidirectionalIndex(_idx2val.persistent(), _val2idx, maxIdx.get() + 1);
     }
 }

@@ -1,5 +1,7 @@
 package uk.ac.susx.tag.apt.util;
 
+import clojure.lang.IPersistentMap;
+
 import java.util.Map;
 
 /**
@@ -13,7 +15,7 @@ public class IndexerImpl extends AbstractIndexer {
 
     private IndexerImpl() {}
 
-    public static IndexerImpl from(Map<String, Integer> val2idx) {
+    public static IndexerImpl from(IPersistentMap val2idx) {
         return new IndexerImpl(BidirectionalIndex.from(val2idx));
     }
 

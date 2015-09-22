@@ -13,7 +13,7 @@ public class RelationIndexer extends AbstractIndexer {
         setState(index);
     }
 
-    public static RelationIndexer from(Map<String, Integer> val2idx) {
+    public static RelationIndexer from(IPersistentMap val2idx) {
         return new RelationIndexer(BidirectionalIndex.from(val2idx));
     }
 

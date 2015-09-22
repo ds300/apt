@@ -1,5 +1,9 @@
 package uk.ac.susx.tag.apt.util;
 
+import clojure.lang.APersistentMap;
+import clojure.lang.ITransientMap;
+import clojure.lang.PersistentHashMap;
+
 import java.io.*;
 import java.util.HashMap;
 import java.util.Map;
@@ -65,8 +69,8 @@ public class IO {
     public static Map<String, Integer> getIndexerMapFromTSVFile(String path) throws IOException {
         return getIndexerMapFromTSVFile(new File(path));
     }
-    public static Map<String, Integer> getIndexerMapFromTSVFile(File file) throws IOException {
-        Map<String, Integer> result = new HashMap<>();
+    public static PersistentHashMap getIndexerMapFromTSVFile(File file) throws IOException {
+        ITransientMap result = PersistentHashMap.EMPTY.asTransient();
 
         if (file.exists()) {
             try (BufferedReader in = IO.reader(file)) {
@@ -76,7 +80,7 @@ public class IO {
                     if (line.length() != 0) {
                         String[] parts = line.split("\t");
                         if (parts.length == 2) {
-                            result.put(parts[0], new Integer(parts[1]));
+                            result = result.assoc(parts[0], new Integer(parts[1]));
                         } else {
                             throw new Error("expecting only tuples. got: '"+line+"'");
                         }
@@ -85,7 +89,7 @@ public class IO {
             }
         }
 
-        return result;
+        return (PersistentHashMap) result.persistent();
     }
 
     public static void writeIndexerMapAsTSVFile(String filename, Map<String, Long> indexerMap) throws IOException {

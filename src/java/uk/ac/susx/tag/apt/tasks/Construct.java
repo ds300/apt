@@ -115,6 +115,10 @@ public class Construct {
     }
 
     RGraph sentence2Graph(List<String[]> sentence) {
+        return sentence2Graph(entityIndexer, relationIndexer, sentence);
+    }
+
+    public static RGraph sentence2Graph(Indexer entityIndexer, RelationIndexer relationIndexer, List<String[]> sentence) {
         final RGraph graph = new RGraph(sentence.size());
         final int[] entityIDs = graph.entityIds;
 
@@ -199,9 +203,9 @@ public class Construct {
         new JCommander(opts, args);
 
         construct(
-                LexiconDescriptor.from(opts.directory),
+                LexiconDescriptor.from(opts.parameters.get(0)),
                 opts.depth,
-                opts.parameters.stream().map(s -> new File(s)).collect(Collectors.toList()));
+                opts.parameters.subList(1, opts.parameters.size()).stream().map(s -> new File(s)).collect(Collectors.toList()));
     }
 
     public static class Options {
@@ -211,7 +215,5 @@ public class Construct {
         @Parameter(names = { "-depth"}, description = "depth of trees to include")
         public Integer depth = 3;
 
-        @Parameter(names = { "-dir"}, description = "directory")
-        public String directory = "./";
     }
 }
