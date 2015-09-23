@@ -40,13 +40,26 @@ public class Construct {
     final ExecutorService sentenceConsumers;
 
     final AtomicInteger numSentencesProcessed = new AtomicInteger(0);
+    long lastReportTime = System.currentTimeMillis();
+    long lastReportNumSents = 0;
+
     final Daemon reporter = new Daemon(() -> {
         MemoryReport mr = MemoryReport.get();
+        long numSents = numSentencesProcessed.get();
+        long currentTime = System.currentTimeMillis();
+        long timeElapsed = currentTime - lastReportTime;
+        long sentsElapsed = numSents - lastReportNumSents;
+        String sentsPerSecond = timeElapsed == 0 ? "inf" : Long.toString(Math.round((double) sentsElapsed / ((double) timeElapsed / 1000)));
+
         System.out.printf(
-                "%s Sentences processed. Using %s of %s.\n",
-                numSentencesProcessed.get(),
+                "%s Sentences processed. Using %s of %s. Going at %s sents/s\n",
+                numSents,
                 mr.used.humanReadable(),
-                mr.max.humanReadable());
+                mr.max.humanReadable(),
+                sentsPerSecond);
+
+        lastReportTime = currentTime;
+        lastReportNumSents = numSents;
     }, 5000);
 
     private Construct(LexiconDescriptor descriptor,
@@ -202,10 +215,15 @@ public class Construct {
         Options opts = new Options();
         new JCommander(opts, args);
 
-        construct(
-                LexiconDescriptor.from(opts.parameters.get(0)),
-                opts.depth,
-                opts.parameters.subList(1, opts.parameters.size()).stream().map(s -> new File(s)).collect(Collectors.toList()));
+        String dir = opts.parameters.get(0);
+
+        Collection<File> files = opts.parameters
+                .subList(1, opts.parameters.size())
+                .stream()
+                .map(File::new)
+                .collect(Collectors.toList());
+
+        construct(LexiconDescriptor.from(dir), opts.depth, files);
     }
 
     public static class Options {

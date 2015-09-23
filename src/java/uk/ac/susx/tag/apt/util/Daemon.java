@@ -11,7 +11,6 @@ public class Daemon {
         public void run () {
             while (running) {
                 task.run();
-                System.out.println("yo i also running bro");
                 try {
                     sleeping = true;
                     Thread.sleep(sleepTime);
@@ -33,7 +32,6 @@ public class Daemon {
     }
 
     public void start() {
-        System.out.println("me running bro");
         running = true;
         daemonThread.start();
     }

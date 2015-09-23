@@ -3,35 +3,22 @@ package uk.ac.susx.tag.apt.tasks;
 import com.beust.jcommander.JCommander;
 import com.beust.jcommander.Parameter;
 import uk.ac.susx.tag.apt.*;
+import uk.ac.susx.tag.apt.backend.LevelDBByteStore;
 import uk.ac.susx.tag.apt.backend.LexiconDescriptor;
+import uk.ac.susx.tag.apt.util.ConllReader;
+import uk.ac.susx.tag.apt.util.IO;
 import uk.ac.susx.tag.apt.util.RelationIndexer;
 
+import java.io.*;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
+import java.util.stream.Collectors;
 
 /**
  * Created by ds300 on 21/09/2015.
  */
 public class Compose {
-
-    final LexiconDescriptor descriptor;
-    final Indexer<String> entityIndexer;
-    final RelationIndexer relationIndexer;
-    final LRUCachedAPTStore lexiconStore;
-    final ArrayAPT everythingCounts;
-
-    public Compose(LexiconDescriptor descriptor,
-                   Indexer<String> entityIndexer,
-                   RelationIndexer relationIndexer,
-                   LRUCachedAPTStore lexiconStore,
-                   ArrayAPT everythingCounts) {
-        this.descriptor = descriptor;
-        this.entityIndexer = entityIndexer;
-        this.relationIndexer = relationIndexer;
-        this.lexiconStore = lexiconStore;
-        this.everythingCounts = everythingCounts;
-    }
-
 
     public static class Options {
         @Parameter
@@ -47,9 +34,136 @@ public class Compose {
         public boolean pmi = false;
     }
 
-    public static void main(String[] args) {
+    private static String pad(int i) {
+        String s = Integer.toString(i);
+        while (s.length() < 8) {
+            s = "0" + s;
+        }
+        return s;
+    }
+
+    private static String readablePath(int[] path, RelationIndexer relationIndexer) {
+        StringBuilder sb = new StringBuilder();
+        if (path.length > 0) {
+            sb.append(relationIndexer.resolve(path[0]));
+            for (int i = 1; i < path.length; i++) {
+                sb.append("»");
+                sb.append(relationIndexer.resolve(path[i]));
+            }
+        }
+        return sb.toString();
+    }
+
+    private static String readablePath(int[] path) {
+        StringBuilder sb = new StringBuilder();
+        if (path.length > 0) {
+            sb.append(path[0]);
+            for (int i = 1; i < path.length; i++) {
+                sb.append("»");
+                sb.append(path[i]);
+            }
+        }
+        return sb.toString();
+    }
+
+    public static void compose(LexiconDescriptor descriptor,
+                               APTComposer<ArrayAPT> composer,
+                               Collection<File> files,
+                               int cacheSize) throws Exception {
+
+        final Indexer<String> entityIndexer = descriptor.getEntityIndexer();
+        final RelationIndexer relationIndexer = descriptor.getRelationIndexer();
+
+        try (final LRUCachedAPTStore lexiconStore = new LRUCachedAPTStore.Builder<ArrayAPT>()
+                .setMaxDepth(Integer.MAX_VALUE)
+                .setFactory(ArrayAPT.factory)
+                .setBackend(LevelDBByteStore.fromDescriptor(descriptor))
+                .setMaxItems(cacheSize)
+                .build()) {
+            for (File file : files) {
+                File outputDir = new File(file.getParent(), file.getName() + "-composed");
+                if (!outputDir.exists() && !outputDir.mkdirs()) {
+                    throw new RuntimeException("can't create directory " + outputDir.getAbsolutePath());
+                }
+
+                int sentId = 0;
+                try (ConllReader<String[]> sents = ConllReader.from(IO.reader(file))) {
+                    for (List<String[]> sentence : sents) {
+                        RGraph graph = Construct.sentence2Graph(entityIndexer, relationIndexer, sentence);
+                        ArrayAPT[] composed = composer.compose(lexiconStore, graph);
+                        ArrayAPT rootNode = composed[graph.sorted()[0]];
+
+                        int[][] paths = new int[composed.length][];
+                        rootNode.walk((path, apt) -> {
+                            for (int i=0; i < composed.length; i++) {
+                                if (composed[i] == apt) {
+                                    paths[i] = path;
+                                }
+                            }
+                        });
+
+                        try (Writer out = IO.writer(new File(outputDir, pad(sentId) + ".sent"))) {
+                            for (String[] token : sentence) {
+                                if (token.length == 4) {
+                                    int id = Integer.parseInt(token[0]) - 1;
+                                    String[] newToken = new String[6];
+                                    System.arraycopy(token, 0, newToken, 0, 4);
+                                    newToken[4] = readablePath(paths[id], relationIndexer);
+                                    newToken[5] = readablePath(paths[id]);
+
+                                    token = newToken;
+                                }
+                                if (token.length >= 1) {
+                                    out.write(token[0]);
+                                }
+                                for (int i = 1; i < token.length; i++) {
+                                    out.write("\t");
+                                    out.write(token[i]);
+                                }
+                                out.write("\n");
+                            }
+                            out.write("\n");
+                        }
+
+                        try (OutputStream out = IO.outputStream(new File(outputDir, pad(sentId) + ".apt.gz"))) {
+                            out.write(rootNode.toByteArray());
+                        }
+
+                        sentId += 1;
+                    }
+
+                }
+            }
+        }
+    }
+
+    public static void main(String[] args) throws Exception {
         Options opts = new Options();
-        new JCommander(opts, new String[]{"buns", "jizz", "maloid"});
+        new JCommander(opts, args);
+
+        String dir = opts.parameters.get(0);
+        LexiconDescriptor descriptor = LexiconDescriptor.from(dir);
+
+        Collection<File> files = opts.parameters
+                .subList(1, opts.parameters.size())
+                .stream()
+                .map(File::new)
+                .collect(Collectors.toList());
+
+        APTComposer composer;
+
+        switch (opts.method) {
+            case "sum":
+                composer = new OverlayComposer();
+                break;
+            case "sum*":
+                composer = OverlayComposer.sumStar(descriptor.getEverythingCounts(), !opts.pmi);
+                break;
+            default:
+                throw new IllegalArgumentException("'"+opts.method+"' is not a composition method");
+        }
+
+        compose(descriptor, composer, files, opts.cacheSize);
 
     }
 }
