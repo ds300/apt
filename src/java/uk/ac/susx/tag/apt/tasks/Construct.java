@@ -9,15 +9,16 @@ import uk.ac.susx.tag.apt.util.*;
 
 import java.io.File;
 import java.io.IOException;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
-import java.util.concurrent.ConcurrentLinkedQueue;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 /**
  * Created by ds300 on 17/09/2015.
@@ -33,8 +34,8 @@ public class Construct {
     final AccumulativeLazyAPT everythingCounter;
 
 
-    final ConcurrentLinkedQueue<File> files = new ConcurrentLinkedQueue<>();
-    final ConcurrentLinkedQueue<List<String[]>> sentences = new ConcurrentLinkedQueue<>();
+    final LinkedBlockingQueue<File> files = new LinkedBlockingQueue<>();
+    final LinkedBlockingQueue<List<String[]>> sentences = new LinkedBlockingQueue<>(100);
 
     final ExecutorService sentenceExtractors;
     final ExecutorService sentenceConsumers;
@@ -43,24 +44,7 @@ public class Construct {
     long lastReportTime = System.currentTimeMillis();
     long lastReportNumSents = 0;
 
-    final Daemon reporter = new Daemon(() -> {
-        MemoryReport mr = MemoryReport.get();
-        long numSents = numSentencesProcessed.get();
-        long currentTime = System.currentTimeMillis();
-        long timeElapsed = currentTime - lastReportTime;
-        long sentsElapsed = numSents - lastReportNumSents;
-        String sentsPerSecond = timeElapsed == 0 ? "inf" : Long.toString(Math.round((double) sentsElapsed / ((double) timeElapsed / 1000)));
-
-        System.out.printf(
-                "%s Sentences processed. Using %s of %s. Going at %s sents/s\n",
-                numSents,
-                mr.used.humanReadable(),
-                mr.max.humanReadable(),
-                sentsPerSecond);
-
-        lastReportTime = currentTime;
-        lastReportNumSents = numSents;
-    }, 5000);
+    final Daemon reporter;
 
     private Construct(LexiconDescriptor descriptor,
                       int depth,
@@ -80,6 +64,36 @@ public class Construct {
         this.files.addAll(files);
         this.sentenceExtractors = sentenceExtractors;
         this.sentenceConsumers = sentenceConsumers;
+
+        this.reporter = new Daemon(() -> {
+            MemoryReport mr = MemoryReport.get();
+            long numSents = numSentencesProcessed.get();
+            long currentTime = System.currentTimeMillis();
+            long timeElapsed = currentTime - lastReportTime;
+            long sentsElapsed = numSents - lastReportNumSents;
+            String sentsPerSecond = timeElapsed == 0 ? "inf" : Long.toString(Math.round((double) sentsElapsed / ((double) timeElapsed / 1000)));
+            String time =
+                    DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss").format(LocalDateTime.now());
+
+            if (lexiconStore.isClearingCache()) {
+                System.out.printf(
+                        "%s -- Awaiting Cache Clearance. %s items cleared. Using %s of %s.\n",
+                        time, lexiconStore.numCacheItemsCleared(), mr.used.humanReadable(), mr.max.humanReadable()
+                );
+            } else {
+                System.out.printf(
+                        "%s -- %s Sentences processed. Using %s of %s. Going at %s sents/s\n",
+                        time,
+                        numSents,
+                        mr.used.humanReadable(),
+                        mr.max.humanReadable(),
+                        sentsPerSecond);
+            }
+            System.out.flush();
+
+            lastReportTime = currentTime;
+            lastReportNumSents = numSents;
+        }, 5000);
     }
 
 
@@ -90,7 +104,7 @@ public class Construct {
             while ((sentenceFile = files.poll()) != null) {
                 try (ConllReader<String[]> sentencesFromFile = ConllReader.from(IO.reader(sentenceFile))) {
                     for (List<String[]> sentence : sentencesFromFile) {
-                        sentences.add(sentence);
+                        sentences.put(sentence);
                     }
                 } catch (Exception e) {
                     e.printStackTrace();
@@ -102,20 +116,16 @@ public class Construct {
     class SentenceConsumer implements Runnable {
         @Override
         public void run() {
-            while (!sentenceExtractors.isShutdown() || !sentences.isEmpty()) {
-                List<String[]> sentence = sentences.poll();
-                while (!sentenceExtractors.isShutdown() && sentence == null) {
-                    try {
-                        Thread.sleep(200);
-                    } catch (InterruptedException ignored) { }
-
-                    sentence = sentences.poll();
+            while (true) {
+                List<String[]> sentence = null;
+                try {
+                    sentence = sentences.poll(1, TimeUnit.SECONDS);
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
                 }
-                if (sentence == null) {
-                    // extractors finished so so are we
+                if (sentenceExtractors.isTerminated()) {
                     return;
-                } else {
-                    // consume sentence
+                } else if (sentence != null) {
                     try {
                         consumeGraph(sentence2Graph(sentence));
                         numSentencesProcessed.incrementAndGet();
@@ -190,6 +200,7 @@ public class Construct {
         int numSentenceConsumers = Runtime.getRuntime().availableProcessors() + 2;
 
         try (AccumulativeAPTStore store = new AccumulativeAPTStore(LevelDBByteStore.fromDescriptor(lexiconDescriptor), depth)) {
+            System.out.println("Beginning Lexicon Construction");
             Construct construct = new Construct(
                     lexiconDescriptor,
                     depth,
@@ -203,12 +214,25 @@ public class Construct {
 
             construct.start(numSentenceExtractors, numSentenceConsumers);
             construct.awaitShutdown(Long.MAX_VALUE, TimeUnit.DAYS);
+            System.out.println("Finished Lexicon Construction");
         } finally {
+            System.out.println("Storing everything counts");
             lexiconDescriptor.storeEverythingCounts(everythingCounter);
+            System.out.println("Storing entity indexer");
             lexiconDescriptor.storeEntityIndexer(entityIndexer);
+            System.out.println("Storing relation indexer");
             lexiconDescriptor.storeRelationIndexer(relationIndexer);
+            System.out.println("totally done now");
         }
 
+    }
+
+    public static Stream<File> extractFilesRecursively(File f) {
+        if (f.isDirectory()) {
+            return Arrays.asList(f.listFiles()).stream().flatMap(Construct::extractFilesRecursively);
+        } else {
+            return Stream.of(f);
+        }
     }
 
     public static void main(String[] args) throws IOException, InterruptedException {
@@ -221,6 +245,7 @@ public class Construct {
                 .subList(1, opts.parameters.size())
                 .stream()
                 .map(File::new)
+                .flatMap(Construct::extractFilesRecursively)
                 .collect(Collectors.toList());
 
         construct(LexiconDescriptor.from(dir), opts.depth, files);
