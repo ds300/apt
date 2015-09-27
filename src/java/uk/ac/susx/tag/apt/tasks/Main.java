@@ -1,7 +1,5 @@
 package uk.ac.susx.tag.apt.tasks;
 
-import java.io.IOException;
-import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 
 /**
@@ -25,6 +23,9 @@ public class Main {
                 break;
             case "compose":
                 Compose.main(actualArgs);
+                break;
+            case "vectors":
+                Vectors.main(actualArgs);
                 break;
             default:
                 System.err.println("no task: " + command);

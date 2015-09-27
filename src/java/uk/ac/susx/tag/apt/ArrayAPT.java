@@ -9,6 +9,8 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.function.BiConsumer;
+import java.util.function.BiFunction;
 
 import uk.ac.susx.mlcl.lib.collect.SparseDoubleVector;
 
@@ -411,6 +413,12 @@ public class ArrayAPT implements APT {
                     kids[i].walk(visitor, append(path, edge), -edge, depth-1);
                 }
             }
+        }
+    }
+
+    public void forEach(BiConsumer<Integer, Float> consumer) {
+        for (int i = 0; i < entities.length; i++) {
+            consumer.accept(entities[i], scores[i]);
         }
     }
 
