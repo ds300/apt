@@ -7,8 +7,8 @@
             [clojure.java.io :as io]
             [tag.apt.backend.leveldb :as leveldb]
             [tag.apt.canon :as canon])
-  (:import (uk.ac.susx.tag.apt LRUCachedAPTStore$Builder ArrayAPT Indexer RGraph)
-           (uk.ac.susx.tag.apt JeremyComposer$Builder APTComposer Util APTVisitor Resolver AdditionComposer OverlayComposer OverlayComposer$SumStarCollpaser)
+  (:import (uk.ac.susx.tag.apt Indexer RGraph)
+           (uk.ac.susx.tag.apt Util APTVisitor Resolver OverlayComposer)
            (java.util.zip GZIPOutputStream)
            (java.io ByteArrayOutputStream File FileOutputStream)
            (java.util HashMap)))

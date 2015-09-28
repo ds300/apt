@@ -11,8 +11,9 @@
                  [uk.ac.susx.mlcl/Byblo "2.1.0"]
                  [org.clojure/tools.logging "0.3.1"]
                  [org.clojure/core.async "0.1.346.0-17112a-alpha"]
+                 [com.beust/jcommander "1.48"]
                  [org.fusesource.leveldbjni/leveldbjni-all "1.8"]]
-  :main tag.apt.main
+  :main uk.ac.susx.tag.apt.tasks.Main
   :javac-options ["-target" "1.8" "-source" "1.8" "-Xlint:-options"]
   :repositories [["oracle" "http://download.oracle.com/maven"]
                  ["sonatype" {:url "http://oss.sonatype.org/content/repositories/snapshots"

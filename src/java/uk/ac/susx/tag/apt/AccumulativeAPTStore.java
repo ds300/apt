@@ -8,6 +8,7 @@ import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * Write only, accumulative APTStore, highly optimised for dealing with *big* data.
@@ -31,6 +32,12 @@ public class AccumulativeAPTStore implements AutoCloseable {
     final int depth;
 
     boolean closed = false;
+
+    volatile boolean clearingCache = false;
+
+    public boolean isClearingCache() {
+        return clearingCache;
+    }
 
     Thread memoryWatcher = new Thread() {
         Runtime rt = Runtime.getRuntime();
@@ -67,6 +74,11 @@ public class AccumulativeAPTStore implements AutoCloseable {
         this.depth = depth;
     }
 
+    private AtomicInteger numCacheItemsCleared = new AtomicInteger();
+    public int numCacheItemsCleared () {
+        return numCacheItemsCleared.get();
+    }
+
     private class PutTask implements Runnable {
         final int k;
         final AccumulativeLazyAPT apt;
@@ -85,6 +97,7 @@ public class AccumulativeAPTStore implements AutoCloseable {
                 } else {
                     backend.put(k, apt.toByteArray());
                 }
+                numCacheItemsCleared.incrementAndGet();
             } catch (IOException e) {
                 throw new RuntimeException(e);
             }
@@ -93,6 +106,8 @@ public class AccumulativeAPTStore implements AutoCloseable {
 
     private synchronized void clearCache() throws IOException {
         System.out.println("clearing cache...");
+        clearingCache = true;
+        numCacheItemsCleared.set(0);
         ExecutorService pool = Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors() + 2);
         APersistentMap m = cache;
         cache = PersistentHashMap.EMPTY;
@@ -103,12 +118,16 @@ public class AccumulativeAPTStore implements AutoCloseable {
             AccumulativeLazyAPT apt = (AccumulativeLazyAPT) e.getValue();
             pool.submit(new PutTask(k, apt));
         }
+        m = null;
+        System.gc();
         pool.shutdown();
         try {
             pool.awaitTermination(1, TimeUnit.DAYS);
         } catch (InterruptedException e) {
             throw new IOException(e);
         }
+        clearingCache = false;
+        System.out.println("... finished clearing cache");
     }
 
     private AccumulativeLazyAPT getCached(int key) throws IOException {
@@ -156,6 +175,7 @@ public class AccumulativeAPTStore implements AutoCloseable {
     @Override
     public synchronized void close() throws IOException {
         if (closed) return;
+        System.out.println("closing accumulative apt store");
         closed = true;
         clearCache();
         backend.close();
