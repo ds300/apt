@@ -142,7 +142,16 @@ public class Construct {
     }
 
     public static RGraph sentence2Graph(Indexer entityIndexer, RelationIndexer relationIndexer, List<String[]> sentence) {
-        final RGraph graph = new RGraph(sentence.size());
+        // find max entity index
+        int max = 0;
+        for (String[] entity : sentence) {
+            int i = Integer.parseInt(entity[0]);
+            if (i  > max) {
+                max = i;
+            }
+        }
+
+        final RGraph graph = new RGraph(max);
         final int[] entityIDs = graph.entityIds;
 
         for (String[] entity : sentence) {

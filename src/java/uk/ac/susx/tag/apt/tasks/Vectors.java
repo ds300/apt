@@ -3,7 +3,6 @@ package uk.ac.susx.tag.apt.tasks;
 
 import com.beust.jcommander.JCommander;
 import com.beust.jcommander.Parameter;
-import javassist.compiler.Lex;
 import uk.ac.susx.tag.apt.*;
 import uk.ac.susx.tag.apt.backend.LevelDBByteStore;
 import uk.ac.susx.tag.apt.backend.LexiconDescriptor;
@@ -13,7 +12,6 @@ import uk.ac.susx.tag.apt.util.RelationIndexer;
 
 import java.io.IOException;
 import java.io.Writer;
-import java.lang.reflect.Array;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
