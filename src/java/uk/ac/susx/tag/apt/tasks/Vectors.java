@@ -27,7 +27,8 @@ public class Vectors {
     public static void vectors (final LRUCachedAPTStore<ArrayAPT> aptStore,
                                 final Resolver<String> entityIndexer,
                                 final RelationIndexer relationIndexer,
-                                final Writer out) throws IOException {
+                                final Writer out,
+                                final boolean normalise) throws IOException {
 
 
         final AtomicInteger numAptsProcessed = new AtomicInteger(0);
@@ -67,7 +68,7 @@ public class Vectors {
                         out.write(pathString);
                         out.write(entityIndexer.resolve(eid));
                         out.write("\t");
-                        out.write(Float.toString(score));
+                        out.write(Float.toString((normalise ? score / node.sum() : score)));
                         out.write("\t");
                     } catch (IOException e) {
                         throw new RuntimeException(e);
@@ -94,6 +95,7 @@ public class Vectors {
 
         String lexiconDirectory = opts.parameters.get(0);
         String outputFilename = opts.parameters.get(1);
+        boolean normalise = opts.normalise;
 
 
         LexiconDescriptor lexiconDescriptor = LexiconDescriptor.from(lexiconDirectory);
@@ -105,7 +107,7 @@ public class Vectors {
                 .setMaxItems(opts.cacheSize)
                 .build();
              Writer out = IO.writer(outputFilename)) {
-            vectors(cachedAPTStore, lexiconDescriptor.getEntityIndexer(), lexiconDescriptor.getRelationIndexer(), out);
+            vectors(cachedAPTStore, lexiconDescriptor.getEntityIndexer(), lexiconDescriptor.getRelationIndexer(), out, normalise);
         }
     }
 
@@ -115,5 +117,8 @@ public class Vectors {
 
         @Parameter(names = {"cache-size"}, description = "The maximum size of the in-memory APT cache")
         public int cacheSize = 100000;
+
+        @Parameter(names = {"-normalise"}, description = "Create Vectors with normalised counts")
+        public boolean normalise = false;
     }
 }
