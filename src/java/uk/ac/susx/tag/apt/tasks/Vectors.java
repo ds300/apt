@@ -3,6 +3,7 @@ package uk.ac.susx.tag.apt.tasks;
 
 import com.beust.jcommander.JCommander;
 import com.beust.jcommander.Parameter;
+import org.springframework.util.StreamUtils;
 import uk.ac.susx.tag.apt.*;
 import uk.ac.susx.tag.apt.backend.LevelDBByteStore;
 import uk.ac.susx.tag.apt.backend.LexiconDescriptor;
@@ -13,6 +14,7 @@ import uk.ac.susx.tag.apt.util.RelationIndexer;
 import java.io.IOException;
 import java.io.Writer;
 import java.util.ArrayList;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -39,7 +41,6 @@ public class Vectors {
 
         watcher.start();
 
-
         for (Map.Entry<Integer, ArrayAPT> entry : aptStore) {
             int entityId = entry.getKey();
             ArrayAPT apt = entry.getValue();
@@ -47,34 +48,48 @@ public class Vectors {
             out.write(entityIndexer.resolve(entityId));
             out.write("\t");
 
+			float sum = 1.f;
+			// For the normalisation business it might be easiest to walk every path twice
+			if (normalise) {
+				LinkedList<Float> bufferSum = new LinkedList<>();
+				apt.walk((path, node) -> {
+					bufferSum.add(node.sum());
+				});
+
+				sum = bufferSum.stream().reduce(0.f, (x, y) -> x + y); // Can we reduce it on the fly during `walk`?
+			}
+
+			final float endSum = sum; // Good god, Java, I hate your ugly awfulness!
+
+			// Actually walk the shit and do stuff
             apt.walk((path, node) -> {
-                StringBuilder pathStringBuilder = new StringBuilder();
+				StringBuilder pathStringBuilder = new StringBuilder();
 
-                if (path.length > 0) {
-                    pathStringBuilder.append(relationIndexer.resolve(path[0]));
-                }
+				if (path.length > 0) {
+					pathStringBuilder.append(relationIndexer.resolve(path[0]));
+				}
 
-                for (int i = 1; i < path.length; i++) {
-                    pathStringBuilder.append("»");
-                    pathStringBuilder.append(relationIndexer.resolve(path[i]));
-                }
+				for (int i = 1; i < path.length; i++) {
+					pathStringBuilder.append("»");
+					pathStringBuilder.append(relationIndexer.resolve(path[i]));
+				}
 
-                pathStringBuilder.append(":");
+				pathStringBuilder.append(":");
 
-                final String pathString = pathStringBuilder.toString();
+				final String pathString = pathStringBuilder.toString();
 
-                ((ArrayAPT) node).forEach((eid, score) -> {
-                    try {
-                        out.write(pathString);
-                        out.write(entityIndexer.resolve(eid));
-                        out.write("\t");
-                        out.write(Float.toString((normalise ? score / node.sum() : score)));
-                        out.write("\t");
-                    } catch (IOException e) {
-                        throw new RuntimeException(e);
-                    }
-                });
-            });
+				((ArrayAPT) node).forEach((eid, score) -> {
+					try {
+						out.write(pathString);
+						out.write(entityIndexer.resolve(eid));
+						out.write("\t");
+						out.write(Float.toString(score / endSum));
+						out.write("\t");
+					} catch (IOException e) {
+						throw new RuntimeException(e);
+					}
+				});
+			});
 
             out.write("\n");
 
