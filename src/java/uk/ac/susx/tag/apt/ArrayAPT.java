@@ -22,11 +22,11 @@ public class ArrayAPT implements APT {
     static final float[] EMPTY_FLOATS = new float[0];
     static final ArrayAPT[] EMPTY_KIDS = new ArrayAPT[0];
 
-    int[] edges  = EMPTY_INTS;
-    ArrayAPT[] kids = EMPTY_KIDS;
-    int[] entities = EMPTY_INTS;
-    float[] scores = EMPTY_FLOATS;
-    private float sum = 0;
+    int[] edges  = EMPTY_INTS; // indices of relations to kids at same index
+    ArrayAPT[] kids = EMPTY_KIDS; // kids of current apts
+    int[] entities = EMPTY_INTS; // "sibling" nodes of current apts, indices of lexems at same path
+    float[] scores = EMPTY_FLOATS; // co-occurrence counts of current apt
+    private float sum = 0; // sum of all co-occurrence counts of current apt
 
     private ArrayAPT() {}
 
