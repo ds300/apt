@@ -27,8 +27,9 @@ public class Main {
             case "vectors":
                 Vectors.main(actualArgs);
                 break;
-            case "normalise":
-                Normalise.main(actualArgs);
+            case "vectorise":
+                Vectorize.main(actualArgs);
+                break;
             default:
                 System.err.println("no task: " + command);
                 System.exit(1);
