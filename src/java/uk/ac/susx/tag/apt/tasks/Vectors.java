@@ -25,6 +25,38 @@ import java.util.concurrent.atomic.AtomicInteger;
 public class Vectors {
 
 
+    public static void writeVector(ArrayAPT apt, Writer out, Resolver<String> entityIndexer, RelationIndexer relationIndexer, boolean normalise, boolean resolve, float sum) {
+        // Actually walk the shit and do stuff
+        apt.walk((path, node) -> {
+            StringBuilder pathStringBuilder = new StringBuilder();
+
+            if (path.length > 0) {
+                pathStringBuilder.append(resolve ? relationIndexer.resolve(path[0]) : Integer.toString(path[0]));
+            }
+
+            for (int i = 1; i < path.length; i++) {
+                pathStringBuilder.append("»");
+                pathStringBuilder.append(resolve ? relationIndexer.resolve(path[i]) : Integer.toString(path[i]));
+            }
+
+            pathStringBuilder.append(":");
+
+            final String pathString = pathStringBuilder.toString();
+
+            ((ArrayAPT) node).forEach((eid, score) -> {
+                try {
+                    out.write(pathString);
+                    out.write(resolve ? entityIndexer.resolve(eid) : eid.toString());
+                    out.write("\t");
+                    out.write(Float.toString(normalise ? score / sum : score));
+                    out.write("\t");
+                } catch (IOException e) {
+                    throw new RuntimeException(e);
+                }
+            });
+        });
+    }
+
 
     public static void vectors (final LRUCachedAPTStore<ArrayAPT> aptStore,
                                 final Resolver<String> entityIndexer,
@@ -48,48 +80,16 @@ public class Vectors {
             out.write(entityIndexer.resolve(entityId));
             out.write("\t");
 
-			float sum = 1.f;
+            class mutableFloat {
+                float f = 0;
+            }
+			final mutableFloat sum = new mutableFloat();
+            apt.walk((path, a) -> {
+                sum.f += a.sum();
+            });
 			// For the normalisation business it might be easiest to walk every path twice
-			if (normalise) {
-				LinkedList<Float> bufferSum = new LinkedList<>();
-				apt.walk((path, node) -> {
-					bufferSum.add(node.sum());
-				});
 
-				sum = bufferSum.stream().reduce(0.f, (x, y) -> x + y); // Can we reduce it on the fly during `walk`?
-			}
-
-			final float endSum = sum; // Good god, Java, I hate your ugly awfulness!
-
-			// Actually walk the shit and do stuff
-            apt.walk((path, node) -> {
-				StringBuilder pathStringBuilder = new StringBuilder();
-
-				if (path.length > 0) {
-					pathStringBuilder.append(relationIndexer.resolve(path[0]));
-				}
-
-				for (int i = 1; i < path.length; i++) {
-					pathStringBuilder.append("»");
-					pathStringBuilder.append(relationIndexer.resolve(path[i]));
-				}
-
-				pathStringBuilder.append(":");
-
-				final String pathString = pathStringBuilder.toString();
-
-				((ArrayAPT) node).forEach((eid, score) -> {
-					try {
-						out.write(pathString);
-						out.write(entityIndexer.resolve(eid));
-						out.write("\t");
-						out.write(Float.toString(score / endSum));
-						out.write("\t");
-					} catch (IOException e) {
-						throw new RuntimeException(e);
-					}
-				});
-			});
+			writeVector(apt, out, entityIndexer, relationIndexer, normalise, true, sum.f);
 
             out.write("\n");
 
