@@ -24,13 +24,13 @@ public class Compose {
         @Parameter
         public List<String> parameters = new ArrayList<>();
 
-        @Parameter(names = {"cache-size"}, description = "The maximum size of the in-memory APT cache")
+        @Parameter(names = {"-cache-size"}, description = "The maximum size of the in-memory APT cache")
         public int cacheSize = 100000;
 
-        @Parameter(names = {"method"}, description = "The method of composition to use. One of: sum, sum*")
+        @Parameter(names = {"-method"}, description = "The method of composition to use. One of: sum, sum*")
         public String method = "sum*";
 
-        @Parameter(names = {"pmi"}, description = "Use standard pmi rather than ppmi. (only applies to the sum* method)")
+        @Parameter(names = {"-pmi"}, description = "Use standard pmi rather than ppmi. (only applies to the sum* method)")
         public boolean pmi = false;
     }
 
