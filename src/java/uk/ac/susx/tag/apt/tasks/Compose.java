@@ -6,6 +6,7 @@ import uk.ac.susx.tag.apt.*;
 import uk.ac.susx.tag.apt.backend.LevelDBByteStore;
 import uk.ac.susx.tag.apt.backend.LexiconDescriptor;
 import uk.ac.susx.tag.apt.util.ConllReader;
+import uk.ac.susx.tag.apt.util.Daemon;
 import uk.ac.susx.tag.apt.util.IO;
 import uk.ac.susx.tag.apt.util.RelationIndexer;
 
@@ -13,6 +14,7 @@ import java.io.*;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
 /**
@@ -86,8 +88,14 @@ public class Compose {
                     throw new RuntimeException("can't create directory " + outputDir.getAbsolutePath());
                 }
 
-                int sentId = 0;
+                final AtomicInteger sentId = new AtomicInteger(0);
                 try (ConllReader<String[]> sents = ConllReader.from(IO.reader(file))) {
+                    final Daemon watcher = new Daemon(() -> {
+                        System.out.println(sentId.get() + " sentences composed");
+                    }, 5000);
+
+                    watcher.start();
+
                     for (List<String[]> sentence : sents) {
                         RGraph graph = Construct.sentence2Graph(entityIndexer, relationIndexer, sentence);
                         ArrayAPT[] composed = composer.compose(lexiconStore, graph);
@@ -102,7 +110,7 @@ public class Compose {
                             }
                         });
 
-                        try (Writer out = IO.writer(new File(outputDir, pad(sentId) + ".sent"))) {
+                        try (Writer out = IO.writer(new File(outputDir, pad(sentId.get()) + ".sent"))) {
                             for (String[] token : sentence) {
                                 if (token.length == 4) {
                                     int id = Integer.parseInt(token[0]) - 1;
@@ -125,13 +133,14 @@ public class Compose {
                             out.write("\n");
                         }
 
-                        try (OutputStream out = IO.outputStream(new File(outputDir, pad(sentId) + ".apt.gz"))) {
+                        try (OutputStream out = IO.outputStream(new File(outputDir, pad(sentId.get()) + ".apt.gz"))) {
                             out.write(rootNode.toByteArray());
                         }
 
-                        sentId += 1;
+                        sentId.incrementAndGet();
                     }
-
+                    watcher.task.run();
+                    watcher.stop();
                 }
             }
         }
@@ -160,7 +169,7 @@ public class Compose {
                 composer = OverlayComposer.sumStar(descriptor.getEverythingCounts(), !opts.pmi);
                 break;
             default:
-                throw new IllegalArgumentException("'"+opts.method+"' is not a composition method");
+                throw new IllegalArgumentException("'" + opts.method + "' is not a composition method");
         }
 
         compose(descriptor, composer, files, opts.cacheSize);
