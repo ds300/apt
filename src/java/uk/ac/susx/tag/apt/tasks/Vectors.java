@@ -3,7 +3,6 @@ package uk.ac.susx.tag.apt.tasks;
 
 import com.beust.jcommander.JCommander;
 import com.beust.jcommander.Parameter;
-import org.springframework.util.StreamUtils;
 import uk.ac.susx.tag.apt.*;
 import uk.ac.susx.tag.apt.backend.LevelDBByteStore;
 import uk.ac.susx.tag.apt.backend.LexiconDescriptor;
@@ -14,7 +13,6 @@ import uk.ac.susx.tag.apt.util.RelationIndexer;
 import java.io.IOException;
 import java.io.Writer;
 import java.util.ArrayList;
-import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -24,6 +22,18 @@ import java.util.concurrent.atomic.AtomicInteger;
  */
 public class Vectors {
 
+    /**
+     * Write vectors without resolving the paths, e.g. the three-feature vector
+     * see/V	:i/LS	5.0	:see/V	190.0	:in/CONJ	5.0
+     *
+     * becomes
+     *
+     * see/V	:0	5.0	:2	190.0	:10	5.0
+     *
+     */
+    public static void writeVector(ArrayAPT apt, Writer out, boolean normalise, float sum) {
+        writeVector(apt, out, null, null, normalise, false, sum);
+    }
 
     public static void writeVector(ArrayAPT apt, Writer out, Resolver<String> entityIndexer, RelationIndexer relationIndexer, boolean normalise, boolean resolve, float sum) {
         // Actually walk the shit and do stuff
@@ -62,6 +72,7 @@ public class Vectors {
                                 final Resolver<String> entityIndexer,
                                 final RelationIndexer relationIndexer,
                                 final Writer out,
+                                final boolean resolve,
                                 final boolean normalise) throws IOException {
 
 
@@ -89,8 +100,10 @@ public class Vectors {
             });
 			// For the normalisation business it might be easiest to walk every path twice
 
-			writeVector(apt, out, entityIndexer, relationIndexer, normalise, true, sum.f);
-
+            if(resolve)
+                writeVector(apt, out, entityIndexer, relationIndexer, normalise, true, sum.f);
+            else
+                writeVector(apt, out, normalise, sum.f);
             out.write("\n");
 
             numAptsProcessed.incrementAndGet();
@@ -111,6 +124,7 @@ public class Vectors {
         String lexiconDirectory = opts.parameters.get(0);
         String outputFilename = opts.parameters.get(1);
         boolean normalise = opts.normalise;
+        boolean resolve = opts.resolve;
 
 
         LexiconDescriptor lexiconDescriptor = LexiconDescriptor.from(lexiconDirectory);
@@ -122,7 +136,7 @@ public class Vectors {
                 .setMaxItems(opts.cacheSize)
                 .build();
              Writer out = IO.writer(outputFilename)) {
-            vectors(cachedAPTStore, lexiconDescriptor.getEntityIndexer(), lexiconDescriptor.getRelationIndexer(), out, normalise);
+            vectors(cachedAPTStore, lexiconDescriptor.getEntityIndexer(), lexiconDescriptor.getRelationIndexer(), out, resolve, normalise);
         }
     }
 
@@ -132,8 +146,9 @@ public class Vectors {
 
         @Parameter(names = {"cache-size"}, description = "The maximum size of the in-memory APT cache")
         public int cacheSize = 100000;
-
         @Parameter(names = {"-normalise"}, description = "Create Vectors with normalised counts")
         public boolean normalise = false;
+        @Parameter(names = {"-resolve"}, description = "Resolve path indices into lemmas")
+        public boolean resolve = false;
     }
 }
