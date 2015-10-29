@@ -124,7 +124,7 @@ public class Vectors {
         String lexiconDirectory = opts.parameters.get(0);
         String outputFilename = opts.parameters.get(1);
         boolean normalise = opts.normalise;
-        boolean resolve = opts.resolve;
+        boolean resolve = !opts.compact;
 
 
         LexiconDescriptor lexiconDescriptor = LexiconDescriptor.from(lexiconDirectory);
@@ -148,7 +148,7 @@ public class Vectors {
         public int cacheSize = 100000;
         @Parameter(names = {"-normalise"}, description = "Create Vectors with normalised counts")
         public boolean normalise = false;
-        @Parameter(names = {"-resolve"}, description = "Resolve path indices into lemmas")
-        public boolean resolve = false;
+        @Parameter(names = {"-compact"}, description = "Do not compact path indices into lemmas")
+        public boolean compact = false;
     }
 }
