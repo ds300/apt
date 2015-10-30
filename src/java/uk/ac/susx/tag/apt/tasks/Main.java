@@ -27,8 +27,8 @@ public class Main {
             case "vectors":
                 Vectors.main(actualArgs);
                 break;
-            case "vectorise":
-                Vectorize.main(actualArgs);
+            case "composed-vectors":
+                ComposedVectors.main(actualArgs);
                 break;
             default:
                 System.err.println("no task: " + command);

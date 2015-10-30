@@ -6,6 +6,7 @@ import uk.ac.susx.tag.apt.*;
 import uk.ac.susx.tag.apt.backend.LevelDBByteStore;
 import uk.ac.susx.tag.apt.backend.LexiconDescriptor;
 import uk.ac.susx.tag.apt.util.ConllReader;
+import uk.ac.susx.tag.apt.util.Daemon;
 import uk.ac.susx.tag.apt.util.IO;
 import uk.ac.susx.tag.apt.util.RelationIndexer;
 
@@ -13,6 +14,7 @@ import java.io.*;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
 /**
@@ -32,6 +34,12 @@ public class Compose {
 
         @Parameter(names = {"pmi"}, description = "Use standard pmi rather than ppmi. (only applies to the sum* method)")
         public boolean pmi = false;
+
+        @Parameter(names = {"-vectors"}, description = "Also output a vector representation of the composed APT")
+        public boolean vectors = false;
+
+        @Parameter(names = {"-compact"}, description = "Do not compact path indices into lemmas")
+        public boolean compact = false;
     }
 
     private static String pad(int i) {
@@ -69,7 +77,7 @@ public class Compose {
     public static void compose(LexiconDescriptor descriptor,
                                APTComposer<ArrayAPT> composer,
                                Collection<File> files,
-                               int cacheSize) throws Exception {
+                               Options opts) throws Exception {
 
         final Indexer<String> entityIndexer = descriptor.getEntityIndexer();
         final RelationIndexer relationIndexer = descriptor.getRelationIndexer();
@@ -78,7 +86,7 @@ public class Compose {
                 .setMaxDepth(Integer.MAX_VALUE)
                 .setFactory(ArrayAPT.factory)
                 .setBackend(LevelDBByteStore.fromDescriptor(descriptor))
-                .setMaxItems(cacheSize)
+                .setMaxItems(opts.cacheSize)
                 .build()) {
             for (File file : files) {
                 File outputDir = new File(file.getParent(), file.getName() + "-composed");
@@ -86,8 +94,14 @@ public class Compose {
                     throw new RuntimeException("can't create directory " + outputDir.getAbsolutePath());
                 }
 
-                int sentId = 0;
+                final AtomicInteger sentId = new AtomicInteger(0);
                 try (ConllReader<String[]> sents = ConllReader.from(IO.reader(file))) {
+                    final Daemon watcher = new Daemon(() -> {
+                        System.out.println(sentId.get() + " sentences composed");
+                    }, 5000);
+
+                    watcher.start();
+
                     for (List<String[]> sentence : sents) {
                         RGraph graph = Construct.sentence2Graph(entityIndexer, relationIndexer, sentence);
                         ArrayAPT[] composed = composer.compose(lexiconStore, graph);
@@ -102,7 +116,7 @@ public class Compose {
                             }
                         });
 
-                        try (Writer out = IO.writer(new File(outputDir, pad(sentId) + ".sent"))) {
+                        try (Writer out = IO.writer(new File(outputDir, pad(sentId.get()) + ".sent"))) {
                             for (String[] token : sentence) {
                                 if (token.length == 4) {
                                     int id = Integer.parseInt(token[0]) - 1;
@@ -125,13 +139,24 @@ public class Compose {
                             out.write("\n");
                         }
 
-                        try (OutputStream out = IO.outputStream(new File(outputDir, pad(sentId) + ".apt.gz"))) {
+                        try (OutputStream out = IO.outputStream(new File(outputDir, pad(sentId.get()) + ".apt.gz"))) {
                             out.write(rootNode.toByteArray());
                         }
 
-                        sentId += 1;
-                    }
+                        if (opts.vectors) {
+                            File outputFile = new File(outputDir, pad(sentId.get()) + ".apt.vec.gz");
+                            try (Writer out = IO.writer(outputFile)) {
+                                if (opts.compact)
+                                    Vectors.writeVector(rootNode, out, false, rootNode.sum());
+                                else
+                                    Vectors.writeVector(rootNode, out, (Resolver<String>) entityIndexer, relationIndexer, false, true, rootNode.sum());
+                            }
+                        }
 
+                        sentId.incrementAndGet();
+                    }
+                    watcher.task.run();
+                    watcher.stop();
                 }
             }
         }
@@ -160,10 +185,10 @@ public class Compose {
                 composer = OverlayComposer.sumStar(descriptor.getEverythingCounts(), !opts.pmi);
                 break;
             default:
-                throw new IllegalArgumentException("'"+opts.method+"' is not a composition method");
+                throw new IllegalArgumentException("'" + opts.method + "' is not a composition method");
         }
 
-        compose(descriptor, composer, files, opts.cacheSize);
+        compose(descriptor, composer, files, opts);
 
     }
 }
