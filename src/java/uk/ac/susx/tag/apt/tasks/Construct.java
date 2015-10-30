@@ -2,6 +2,7 @@ package uk.ac.susx.tag.apt.tasks;
 
 import com.beust.jcommander.JCommander;
 import com.beust.jcommander.Parameter;
+import org.apache.commons.io.FileUtils;
 import uk.ac.susx.tag.apt.*;
 import uk.ac.susx.tag.apt.backend.LevelDBByteStore;
 import uk.ac.susx.tag.apt.backend.LexiconDescriptor;
@@ -146,7 +147,7 @@ public class Construct {
         int max = 0;
         for (String[] entity : sentence) {
             int i = Integer.parseInt(entity[0]);
-            if (i  > max) {
+            if (i > max) {
                 max = i;
             }
         }
@@ -249,6 +250,8 @@ public class Construct {
         new JCommander(opts, args);
 
         String dir = opts.parameters.get(0);
+        if (opts.clean)
+            FileUtils.deleteDirectory(new File(dir));
 
         Collection<File> files = opts.parameters
                 .subList(1, opts.parameters.size())
@@ -264,8 +267,11 @@ public class Construct {
         @Parameter
         public List<String> parameters = new ArrayList<>();
 
-        @Parameter(names = { "-depth"}, description = "depth of trees to include")
+        @Parameter(names = {"-depth"}, description = "depth of trees to include")
         public Integer depth = 3;
+
+        @Parameter(names = {"-clean"}, description = "Delete output directory if it exists")
+        public boolean clean = false;
 
     }
 }
