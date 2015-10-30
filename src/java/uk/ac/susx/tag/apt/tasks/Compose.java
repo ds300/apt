@@ -34,6 +34,12 @@ public class Compose {
 
         @Parameter(names = {"pmi"}, description = "Use standard pmi rather than ppmi. (only applies to the sum* method)")
         public boolean pmi = false;
+
+        @Parameter(names = {"-vectors"}, description = "Also output a vector representation of the composed APT")
+        public boolean vectors = false;
+
+        @Parameter(names = {"-compact"}, description = "Do not compact path indices into lemmas")
+        public boolean compact = false;
     }
 
     private static String pad(int i) {
@@ -71,7 +77,7 @@ public class Compose {
     public static void compose(LexiconDescriptor descriptor,
                                APTComposer<ArrayAPT> composer,
                                Collection<File> files,
-                               int cacheSize) throws Exception {
+                               Options opts) throws Exception {
 
         final Indexer<String> entityIndexer = descriptor.getEntityIndexer();
         final RelationIndexer relationIndexer = descriptor.getRelationIndexer();
@@ -80,7 +86,7 @@ public class Compose {
                 .setMaxDepth(Integer.MAX_VALUE)
                 .setFactory(ArrayAPT.factory)
                 .setBackend(LevelDBByteStore.fromDescriptor(descriptor))
-                .setMaxItems(cacheSize)
+                .setMaxItems(opts.cacheSize)
                 .build()) {
             for (File file : files) {
                 File outputDir = new File(file.getParent(), file.getName() + "-composed");
@@ -137,6 +143,16 @@ public class Compose {
                             out.write(rootNode.toByteArray());
                         }
 
+                        if (opts.vectors) {
+                            File outputFile = new File(outputDir, pad(sentId.get()) + ".apt.vec.gz");
+                            try (Writer out = IO.writer(outputFile)) {
+                                if (opts.compact)
+                                    Vectors.writeVector(rootNode, out, false, rootNode.sum());
+                                else
+                                    Vectors.writeVector(rootNode, out, (Resolver<String>) entityIndexer, relationIndexer, false, true, rootNode.sum());
+                            }
+                        }
+
                         sentId.incrementAndGet();
                     }
                     watcher.task.run();
@@ -172,7 +188,7 @@ public class Compose {
                 throw new IllegalArgumentException("'" + opts.method + "' is not a composition method");
         }
 
-        compose(descriptor, composer, files, opts.cacheSize);
+        compose(descriptor, composer, files, opts);
 
     }
 }
