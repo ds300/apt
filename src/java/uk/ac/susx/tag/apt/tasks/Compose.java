@@ -95,6 +95,7 @@ public class Compose {
                 }
 
                 final AtomicInteger sentId = new AtomicInteger(0);
+                int failedSents = 0, partiallyFailedSents = 0;
                 try (ConllReader<String[]> sents = ConllReader.from(IO.reader(file))) {
                     final Daemon watcher = new Daemon(() -> {
                         System.out.println(sentId.get() + " sentences composed");
@@ -106,7 +107,10 @@ public class Compose {
                         RGraph graph = Construct.sentence2Graph(entityIndexer, relationIndexer, sentence);
                         ArrayAPT[] composed = composer.compose(lexiconStore, graph);
                         ArrayAPT rootNode = composed[graph.sorted()[0]];
-
+                        if (rootNode.getEntityCount() == 0)
+                            failedSents++;
+                        else if (rootNode.getEntityCount() < sentence.size())
+                            partiallyFailedSents++;
                         int[][] paths = new int[composed.length][];
                         rootNode.walk((path, apt) -> {
                             for (int i=0; i < composed.length; i++) {
@@ -157,6 +161,8 @@ public class Compose {
                     }
                     watcher.task.run();
                     watcher.stop();
+                    System.out.println("Partially failed compositions: " + partiallyFailedSents);
+                    System.out.println("Failed compositions: " + failedSents);
                 }
             }
         }
