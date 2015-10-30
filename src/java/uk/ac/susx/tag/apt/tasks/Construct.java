@@ -10,12 +10,11 @@ import uk.ac.susx.tag.apt.util.*;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Paths;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.List;
+import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
@@ -37,6 +36,7 @@ public class Construct {
 
     final LinkedBlockingQueue<File> files = new LinkedBlockingQueue<>();
     final LinkedBlockingQueue<List<String[]>> sentences = new LinkedBlockingQueue<>(100);
+    final Set<String> blacklist = new HashSet<>();
 
     final ExecutorService sentenceExtractors;
     final ExecutorService sentenceConsumers;
@@ -54,6 +54,7 @@ public class Construct {
                       AccumulativeAPTStore lexiconStore,
                       AccumulativeLazyAPT everythingCounter,
                       Collection<File> files,
+                      Set<String> blacklist,
                       ExecutorService sentenceExtractors,
                       ExecutorService sentenceConsumers) {
         this.descriptor = descriptor;
@@ -63,6 +64,7 @@ public class Construct {
         this.lexiconStore = lexiconStore;
         this.everythingCounter = everythingCounter;
         this.files.addAll(files);
+        this.blacklist.addAll(blacklist);
         this.sentenceExtractors = sentenceExtractors;
         this.sentenceConsumers = sentenceConsumers;
 
@@ -175,6 +177,8 @@ public class Construct {
         ArrayAPT[] apts = ArrayAPT.factory.fromGraph(graph);
 
         for (int i = 0; i < apts.length; i++) {
+            final String entity = ((IndexerImpl) entityIndexer).resolve(graph.entityIds[i]);
+            if (this.blacklist.contains(entity)) continue; // filter out blacklisted entities
             ArrayAPT apt = apts[i];
             if (apt != null) {
                 lexiconStore.include(graph.entityIds[i], apt);
@@ -201,7 +205,7 @@ public class Construct {
         reporter.task.run(); // one last time yo
     }
 
-    public static void construct(LexiconDescriptor lexiconDescriptor, int depth, Collection<File> files) throws IOException, InterruptedException {
+    public static void construct(LexiconDescriptor lexiconDescriptor, int depth, Collection<File> files, Set<String> blacklist) throws IOException, InterruptedException {
         AccumulativeLazyAPT everythingCounter = new AccumulativeLazyAPT();
         IndexerImpl entityIndexer = lexiconDescriptor.getEntityIndexer();
         RelationIndexer relationIndexer = lexiconDescriptor.getRelationIndexer();
@@ -219,6 +223,7 @@ public class Construct {
                     store,
                     everythingCounter,
                     files,
+                    blacklist,
                     Executors.newFixedThreadPool(numSentenceExtractors),
                     Executors.newFixedThreadPool(numSentenceConsumers));
 
@@ -260,15 +265,19 @@ public class Construct {
                 .flatMap(Construct::extractFilesRecursively)
                 .collect(Collectors.toList());
 
-        construct(LexiconDescriptor.from(dir), opts.depth, files);
+        HashSet<String> bl = opts.blacklist == null ? new HashSet<>() : new HashSet<>(Files.readAllLines(Paths.get(opts.blacklist)));
+        construct(LexiconDescriptor.from(dir), opts.depth, files, bl);
     }
 
     public static class Options {
         @Parameter
         public List<String> parameters = new ArrayList<>();
 
-        @Parameter(names = {"-depth"}, description = "depth of trees to include")
+        @Parameter(names = {"-depth"}, description = "Depth of trees to include")
         public Integer depth = 3;
+
+        @Parameter(names = {"-blacklist"}, description = "List of entries that an elementary APT will not be built for")
+        public String blacklist = null;
 
         @Parameter(names = {"-clean"}, description = "Delete output directory if it exists")
         public boolean clean = false;
