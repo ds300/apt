@@ -66,7 +66,7 @@ public class Compose {
 
     private static String pad(int i) {
         String s = Integer.toString(i);
-        while (s.length() < 8) {
+        while (s.length() < 12) {
             s = "0" + s;
         }
         return s;
