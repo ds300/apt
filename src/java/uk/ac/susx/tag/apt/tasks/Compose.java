@@ -54,6 +54,9 @@ public class Compose {
         @Parameter(names = {"pmi"}, description = "Use standard pmi rather than ppmi. (only applies to the sum* method)")
         public boolean pmi = false;
 
+        @Parameter(names = {"-skip-trees"}, description = "If true, serialised composed APTs will not be written to disk, just vector representation")
+        public boolean skipTrees = false;
+
         @Parameter(names = {"-vectors"}, description = "Also output a vector representation of the composed APT")
         public boolean vectors = false;
 
@@ -236,8 +239,10 @@ public class Compose {
             out.write("\n");
         }
 
-        try (OutputStream out = IO.outputStream(new File(outputDir, pad(sentId.get()) + ".apt.gz"))) {
-            out.write(rootNode.toByteArray());
+        if (!opts.skipTrees) {
+            try (OutputStream out = IO.outputStream(new File(outputDir, pad(sentId.get()) + ".apt.gz"))) {
+                out.write(rootNode.toByteArray());
+            }
         }
 
         if (opts.vectors) {
