@@ -75,8 +75,7 @@ public class Construct {
             long timeElapsed = currentTime - lastReportTime;
             long sentsElapsed = numSents - lastReportNumSents;
             String sentsPerSecond = timeElapsed == 0 ? "inf" : Long.toString(Math.round((double) sentsElapsed / ((double) timeElapsed / 1000)));
-            String time =
-                    DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss").format(LocalDateTime.now());
+            String time = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss").format(LocalDateTime.now());
 
             if (lexiconStore.isClearingCache()) {
                 System.out.printf(

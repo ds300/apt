@@ -11,6 +11,8 @@ import uk.ac.susx.tag.apt.util.IO;
 import uk.ac.susx.tag.apt.util.RelationIndexer;
 
 import java.io.*;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
@@ -98,7 +100,8 @@ public class Compose {
                 int failedSents = 0, partiallyFailedSents = 0;
                 try (ConllReader<String[]> sents = ConllReader.from(IO.reader(file))) {
                     final Daemon watcher = new Daemon(() -> {
-                        System.out.println(sentId.get() + " sentences composed");
+                        String time = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss").format(LocalDateTime.now());
+                        System.out.printf("%s -- %d sentences composed\n", time, sentId.get());
                     }, 5000);
 
                     watcher.start();
