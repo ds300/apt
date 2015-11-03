@@ -62,6 +62,20 @@ public class Compose {
 
         @Parameter(names = {"-compact"}, description = "Compact path indices into lemmas")
         public boolean compact = false;
+
+        @Override
+        public String toString() {
+            return "Options{" +
+                    "parameters=" + parameters +
+                    ", cacheSize=" + cacheSize +
+                    ", threads=" + threads +
+                    ", method='" + method + '\'' +
+                    ", pmi=" + pmi +
+                    ", skipTrees=" + skipTrees +
+                    ", vectors=" + vectors +
+                    ", compact=" + compact +
+                    '}';
+        }
     }
 
     private static String pad(int i) {
@@ -262,7 +276,7 @@ public class Compose {
     public static void main(String[] args) throws Exception {
         Options opts = new Options();
         new JCommander(opts, args);
-
+        System.out.println(opts);
         String dir = opts.parameters.get(0);
         LexiconDescriptor descriptor = LexiconDescriptor.from(dir);
 

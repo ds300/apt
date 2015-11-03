@@ -119,7 +119,7 @@ public class Vectors {
         Options opts = new Options();
 
         new JCommander(opts, args);
-
+        System.out.println(opts);
 
         String lexiconDirectory = opts.parameters.get(0);
         String outputFilename = opts.parameters.get(1);
@@ -150,5 +150,15 @@ public class Vectors {
         public boolean normalise = false;
         @Parameter(names = {"-compact"}, description = "Compact path indices into lemmas")
         public boolean compact = false;
+
+        @Override
+        public String toString() {
+            return "Options{" +
+                    "parameters=" + parameters +
+                    ", cacheSize=" + cacheSize +
+                    ", normalise=" + normalise +
+                    ", compact=" + compact +
+                    '}';
+        }
     }
 }

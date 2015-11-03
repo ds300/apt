@@ -252,7 +252,7 @@ public class Construct {
     public static void main(String[] args) throws IOException, InterruptedException {
         Options opts = new Options();
         new JCommander(opts, args);
-
+        System.out.println(opts);
         String dir = opts.parameters.get(0);
         if (opts.clean)
             FileUtils.deleteDirectory(new File(dir));
@@ -281,5 +281,14 @@ public class Construct {
         @Parameter(names = {"-clean"}, description = "Delete output directory if it exists")
         public boolean clean = false;
 
+        @Override
+        public String toString() {
+            return "Options{" +
+                    "parameters=" + parameters +
+                    ", depth=" + depth +
+                    ", blacklist='" + blacklist + '\'' +
+                    ", clean=" + clean +
+                    '}';
+        }
     }
 }

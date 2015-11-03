@@ -22,12 +22,20 @@ public class ComposedVectors {
 
         @Parameter(names = {"-compact"}, description = "If true, path indices will not be resolved into lemmas")
         public boolean compact = false;
+
+        @Override
+        public String toString() {
+            return "Options{" +
+                    "files=" + files +
+                    ", compact=" + compact +
+                    '}';
+        }
     }
 
     public static void main(String[] args) throws IOException {
         Options opts = new Options();
         new JCommander(opts, args);
-
+        System.out.println(opts);
         LexiconDescriptor descriptor = LexiconDescriptor.from(opts.files.get(0));
 
         for (String inputFileName : opts.files.subList(1, opts.files.size())) {
