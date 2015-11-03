@@ -16,6 +16,10 @@ import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
@@ -24,12 +28,25 @@ import java.util.stream.Collectors;
  */
 public class Compose {
 
+    static final AtomicInteger failedSents = new AtomicInteger(0);
+    static final AtomicInteger partiallyFailedSents = new AtomicInteger(0);
+    static final AtomicInteger sentId = new AtomicInteger(0);
+
+    static final LinkedBlockingQueue<List<String[]>> sentenceQ = new LinkedBlockingQueue<>();
+    static ExecutorService readerPool = Executors.newFixedThreadPool(2);
+    static ExecutorService composerPool;
+    static Daemon watcher;
+
+
     public static class Options {
         @Parameter
         public List<String> parameters = new ArrayList<>();
 
         @Parameter(names = {"cache-size"}, description = "The maximum size of the in-memory APT cache")
         public int cacheSize = 100000;
+
+        @Parameter(names = {"-threads"}, description = "The maximum size of the in-memory APT cache")
+        public int threads = 2;
 
         @Parameter(names = {"method"}, description = "The method of composition to use. One of: sum, sum*")
         public String method = "sum*";
@@ -90,85 +107,151 @@ public class Compose {
                 .setBackend(LevelDBByteStore.fromDescriptor(descriptor))
                 .setMaxItems(opts.cacheSize)
                 .build()) {
+            watcher = new Daemon(() -> {
+                String time = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss").format(LocalDateTime.now());
+                System.out.printf("%s -- %d sentences composed\n", time, sentId.get());
+            }, 5000);
+
+            watcher.start();
+            composerPool = Executors.newFixedThreadPool(opts.threads);
             for (File file : files) {
+                readerPool.submit(new SentenceProducer(file));
                 File outputDir = new File(file.getParent(), file.getName() + "-composed");
                 if (!outputDir.exists() && !outputDir.mkdirs()) {
                     throw new RuntimeException("can't create directory " + outputDir.getAbsolutePath());
                 }
-
-                final AtomicInteger sentId = new AtomicInteger(0);
-                int failedSents = 0, partiallyFailedSents = 0;
-                try (ConllReader<String[]> sents = ConllReader.from(IO.reader(file))) {
-                    final Daemon watcher = new Daemon(() -> {
-                        String time = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss").format(LocalDateTime.now());
-                        System.out.printf("%s -- %d sentences composed\n", time, sentId.get());
-                    }, 5000);
-
-                    watcher.start();
-
-                    for (List<String[]> sentence : sents) {
-                        RGraph graph = Construct.sentence2Graph(entityIndexer, relationIndexer, sentence);
-                        ArrayAPT[] composed = composer.compose(lexiconStore, graph);
-                        ArrayAPT rootNode = composed[graph.sorted()[0]];
-                        if (rootNode.getEntityCount() == 0)
-                            failedSents++;
-                        else if (rootNode.getEntityCount() < sentence.size())
-                            partiallyFailedSents++;
-                        int[][] paths = new int[composed.length][];
-                        rootNode.walk((path, apt) -> {
-                            for (int i=0; i < composed.length; i++) {
-                                if (composed[i] == apt) {
-                                    paths[i] = path;
-                                }
-                            }
-                        });
-
-                        try (Writer out = IO.writer(new File(outputDir, pad(sentId.get()) + ".sent"))) {
-                            for (String[] token : sentence) {
-                                if (token.length == 4) {
-                                    int id = Integer.parseInt(token[0]) - 1;
-                                    String[] newToken = new String[6];
-                                    System.arraycopy(token, 0, newToken, 0, 4);
-                                    newToken[4] = readablePath(paths[id], relationIndexer);
-                                    newToken[5] = readablePath(paths[id]);
-
-                                    token = newToken;
-                                }
-                                if (token.length >= 1) {
-                                    out.write(token[0]);
-                                }
-                                for (int i = 1; i < token.length; i++) {
-                                    out.write("\t");
-                                    out.write(token[i]);
-                                }
-                                out.write("\n");
-                            }
-                            out.write("\n");
-                        }
-
-                        try (OutputStream out = IO.outputStream(new File(outputDir, pad(sentId.get()) + ".apt.gz"))) {
-                            out.write(rootNode.toByteArray());
-                        }
-
-                        if (opts.vectors) {
-                            File outputFile = new File(outputDir, pad(sentId.get()) + ".apt.vec.gz");
-                            try (Writer out = IO.writer(outputFile)) {
-                                if (opts.compact)
-                                    Vectors.writeVector(rootNode, out, false, rootNode.sum());
-                                else
-                                    Vectors.writeVector(rootNode, out, (Resolver<String>) entityIndexer, relationIndexer, false, true, rootNode.sum());
-                            }
-                        }
-
-                        sentId.incrementAndGet();
-                    }
-                    watcher.task.run();
-                    watcher.stop();
-                    System.out.println("Partially failed compositions: " + partiallyFailedSents);
-                    System.out.println("Failed compositions: " + failedSents);
+                for (int i = 0; i < 5; i++) {
+                    composerPool.submit(new SentenceConsumer(composer, entityIndexer, relationIndexer, lexiconStore, opts, outputDir));
                 }
+                readerPool.shutdown();
+                composerPool.shutdown();
+                composerPool.awaitTermination(25, TimeUnit.HOURS);
+                watcher.stop();
+                watcher.task.run();
+                System.out.println("Partially failed compositions: " + partiallyFailedSents);
+                System.out.println("Failed compositions: " + failedSents);
             }
         }
+    }
+
+    static class SentenceProducer implements Runnable {
+        private final File sentenceFile;
+
+        public SentenceProducer(File sentenceFile) {
+            this.sentenceFile = sentenceFile;
+        }
+
+        @Override
+        public void run() {
+            try (ConllReader<String[]> sentencesFromFile = ConllReader.from(IO.reader(sentenceFile))) {
+                for (List<String[]> sentence : sentencesFromFile) {
+                    sentenceQ.put(sentence);
+                }
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+        }
+    }
+
+
+    static class SentenceConsumer implements Runnable {
+        private APTComposer<ArrayAPT> composer;
+        private Indexer<String> entityIndexer;
+        private RelationIndexer relationIndexer;
+        private LRUCachedAPTStore lexiconStore;
+        private Options opts;
+        private File outputDir;
+
+        public SentenceConsumer(APTComposer<ArrayAPT> composer, Indexer<String> entityIndexer,
+                                RelationIndexer relationIndexer, LRUCachedAPTStore lexiconStore,
+                                Options opts, File outputDir) {
+            this.composer = composer;
+            this.entityIndexer = entityIndexer;
+            this.relationIndexer = relationIndexer;
+            this.lexiconStore = lexiconStore;
+            this.opts = opts;
+            this.outputDir = outputDir;
+        }
+
+        @Override
+        public void run() {
+            List<String[]> sentence = null;
+            while (true) {
+                try {
+                    // wait for new sentences for a few seconds, terminate if no new data available
+                    sentence = sentenceQ.poll(3, TimeUnit.SECONDS);
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
+                }
+                if (sentence != null) {
+                    try {
+                        doComposition(composer, entityIndexer, relationIndexer, lexiconStore, opts, outputDir, sentence);
+                    } catch (Exception e) {
+                        e.printStackTrace();
+                    }
+                } else return;
+            }
+        }
+    }
+
+    public static void doComposition(APTComposer<ArrayAPT> composer, Indexer<String> entityIndexer, RelationIndexer relationIndexer,
+                                     LRUCachedAPTStore lexiconStore, Options opts, File outputDir,
+                                     List<String[]> sentence) throws IOException {
+        RGraph graph = Construct.sentence2Graph(entityIndexer, relationIndexer, sentence);
+        ArrayAPT[] composed = composer.compose(lexiconStore, graph);
+        ArrayAPT rootNode = composed[graph.sorted()[0]];
+        if (rootNode.getEntityCount() == 0)
+            failedSents.getAndIncrement();
+        else if (rootNode.getEntityCount() < sentence.size())
+            partiallyFailedSents.getAndIncrement();
+        int[][] paths = new int[composed.length][];
+        rootNode.walk((path, apt) -> {
+            for (int i = 0; i < composed.length; i++) {
+                if (composed[i] == apt) {
+                    paths[i] = path;
+                }
+            }
+        });
+
+        try (Writer out = IO.writer(new File(outputDir, pad(sentId.get()) + ".sent"))) {
+            for (String[] token : sentence) {
+                if (token.length == 4) {
+                    int id = Integer.parseInt(token[0]) - 1;
+                    String[] newToken = new String[6];
+                    System.arraycopy(token, 0, newToken, 0, 4);
+                    newToken[4] = readablePath(paths[id], relationIndexer);
+                    newToken[5] = readablePath(paths[id]);
+
+                    token = newToken;
+                }
+                if (token.length >= 1) {
+                    out.write(token[0]);
+                }
+                for (int i = 1; i < token.length; i++) {
+                    out.write("\t");
+                    out.write(token[i]);
+                }
+                out.write("\n");
+            }
+            out.write("\n");
+        }
+
+        try (OutputStream out = IO.outputStream(new File(outputDir, pad(sentId.get()) + ".apt.gz"))) {
+            out.write(rootNode.toByteArray());
+        }
+
+        if (opts.vectors) {
+            File outputFile = new File(outputDir, pad(sentId.get()) + ".apt.vec.gz");
+            try (Writer out = IO.writer(outputFile)) {
+                if (opts.compact)
+                    Vectors.writeVector(rootNode, out, false, rootNode.sum());
+                else
+                    Vectors.writeVector(rootNode, out, (Resolver<String>) entityIndexer, relationIndexer, false, true, rootNode.sum());
+            }
+        }
+
+        sentId.incrementAndGet();
+
     }
 
     public static void main(String[] args) throws Exception {
@@ -200,4 +283,6 @@ public class Compose {
         compose(descriptor, composer, files, opts);
 
     }
+
+
 }
