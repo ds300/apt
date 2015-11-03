@@ -38,7 +38,7 @@ public class Compose {
         @Parameter(names = {"-vectors"}, description = "Also output a vector representation of the composed APT")
         public boolean vectors = false;
 
-        @Parameter(names = {"-compact"}, description = "Do not compact path indices into lemmas")
+        @Parameter(names = {"-compact"}, description = "Compact path indices into lemmas")
         public boolean compact = false;
     }
 

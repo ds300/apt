@@ -148,7 +148,7 @@ public class Vectors {
         public int cacheSize = 100000;
         @Parameter(names = {"-normalise"}, description = "Create Vectors with normalised counts")
         public boolean normalise = false;
-        @Parameter(names = {"-compact"}, description = "Do not compact path indices into lemmas")
+        @Parameter(names = {"-compact"}, description = "Compact path indices into lemmas")
         public boolean compact = false;
     }
 }
