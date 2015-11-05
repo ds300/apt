@@ -5,10 +5,7 @@ import com.beust.jcommander.Parameter;
 import uk.ac.susx.tag.apt.*;
 import uk.ac.susx.tag.apt.backend.LevelDBByteStore;
 import uk.ac.susx.tag.apt.backend.LexiconDescriptor;
-import uk.ac.susx.tag.apt.util.ConllReader;
-import uk.ac.susx.tag.apt.util.Daemon;
-import uk.ac.susx.tag.apt.util.IO;
-import uk.ac.susx.tag.apt.util.RelationIndexer;
+import uk.ac.susx.tag.apt.util.*;
 
 import java.io.*;
 import java.time.LocalDateTime;
@@ -278,6 +275,8 @@ public class Compose {
         new JCommander(opts, args);
         System.out.println(opts);
         String dir = opts.parameters.get(0);
+        ParameterValidator.isLexicon(dir);
+
         LexiconDescriptor descriptor = LexiconDescriptor.from(dir);
 
         Collection<File> files = opts.parameters
@@ -286,6 +285,8 @@ public class Compose {
                 .map(File::new)
                 .collect(Collectors.toList());
 
+        ParameterValidator.atLeast(files.stream().map(Object::toString).collect(Collectors.toList()), 1);
+        ParameterValidator.filesExist(files);
         APTComposer composer;
 
         switch (opts.method) {

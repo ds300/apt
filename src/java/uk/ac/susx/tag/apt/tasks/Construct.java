@@ -253,6 +253,7 @@ public class Construct {
         Options opts = new Options();
         new JCommander(opts, args);
         System.out.println(opts);
+        ParameterValidator.atLeast(opts.parameters, 2);
         String dir = opts.parameters.get(0);
         if (opts.clean)
             FileUtils.deleteDirectory(new File(dir));
@@ -263,7 +264,8 @@ public class Construct {
                 .map(File::new)
                 .flatMap(Construct::extractFilesRecursively)
                 .collect(Collectors.toList());
-
+        ParameterValidator.filesExist(files);
+        ParameterValidator.atLeast(files.stream().map(Object::toString).collect(Collectors.toList()), 1);
         HashSet<String> bl = opts.blacklist == null ? new HashSet<>() : new HashSet<>(Files.readAllLines(Paths.get(opts.blacklist)));
         construct(LexiconDescriptor.from(dir), opts.depth, files, bl);
     }

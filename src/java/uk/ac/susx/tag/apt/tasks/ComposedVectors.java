@@ -5,12 +5,14 @@ import com.beust.jcommander.Parameter;
 import uk.ac.susx.tag.apt.ArrayAPT;
 import uk.ac.susx.tag.apt.backend.LexiconDescriptor;
 import uk.ac.susx.tag.apt.util.IO;
+import uk.ac.susx.tag.apt.util.ParameterValidator;
 
 import java.io.File;
 import java.io.IOException;
 import java.io.Writer;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.stream.Collectors;
 
 /**
  * Created by ds300 on 28/10/2015.
@@ -36,8 +38,10 @@ public class ComposedVectors {
         Options opts = new Options();
         new JCommander(opts, args);
         System.out.println(opts);
+        ParameterValidator.isLexicon(opts.files.get(0));
         LexiconDescriptor descriptor = LexiconDescriptor.from(opts.files.get(0));
 
+        ParameterValidator.filesExist(opts.files.subList(1, opts.files.size()).stream().map(Object::toString).collect(Collectors.toList()));
         for (String inputFileName : opts.files.subList(1, opts.files.size())) {
             File inputFile = new File(inputFileName);
             File outputFile = new File(inputFile.getParentFile(), inputFile.getName() + "-vectorized");

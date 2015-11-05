@@ -8,6 +8,7 @@ import uk.ac.susx.tag.apt.backend.LevelDBByteStore;
 import uk.ac.susx.tag.apt.backend.LexiconDescriptor;
 import uk.ac.susx.tag.apt.util.Daemon;
 import uk.ac.susx.tag.apt.util.IO;
+import uk.ac.susx.tag.apt.util.ParameterValidator;
 import uk.ac.susx.tag.apt.util.RelationIndexer;
 
 import java.io.IOException;
@@ -121,7 +122,9 @@ public class Vectors {
         new JCommander(opts, args);
         System.out.println(opts);
 
+        ParameterValidator.atLeast(opts.parameters, 2);
         String lexiconDirectory = opts.parameters.get(0);
+        ParameterValidator.isLexicon(lexiconDirectory);
         String outputFilename = opts.parameters.get(1);
         boolean normalise = opts.normalise;
         boolean resolve = !opts.compact;
