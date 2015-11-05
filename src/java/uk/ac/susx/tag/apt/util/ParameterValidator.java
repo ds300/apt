@@ -48,12 +48,5 @@ public class ParameterValidator {
                 throw new ParameterException(dir + " does not appear to be a valid lexicon");
             }
         }
-
-        File[] files = new File(dir).listFiles((dir1, name) -> {
-            return name.endsWith(".sst");
-        });
-
-        System.out.printf("Found %d APTs in the lexicon", files.length);
-
     }
 }
