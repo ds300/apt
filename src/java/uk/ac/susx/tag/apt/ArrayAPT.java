@@ -1177,6 +1177,9 @@ public class ArrayAPT implements APT {
         return new SparseDoubleVector(keys, vals, keys[keys.length-1], keys.length);
     }
 
+    public int getEntityCount() {
+        return entities.length;
+    }
 
 }
 

@@ -2,6 +2,7 @@ package uk.ac.susx.tag.apt.tasks;
 
 import com.beust.jcommander.JCommander;
 import com.beust.jcommander.Parameter;
+import org.apache.commons.io.FileUtils;
 import uk.ac.susx.tag.apt.*;
 import uk.ac.susx.tag.apt.backend.LevelDBByteStore;
 import uk.ac.susx.tag.apt.backend.LexiconDescriptor;
@@ -9,12 +10,11 @@ import uk.ac.susx.tag.apt.util.*;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Paths;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.List;
+import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
@@ -36,6 +36,7 @@ public class Construct {
 
     final LinkedBlockingQueue<File> files = new LinkedBlockingQueue<>();
     final LinkedBlockingQueue<List<String[]>> sentences = new LinkedBlockingQueue<>(100);
+    final Set<String> blacklist = new HashSet<>();
 
     final ExecutorService sentenceExtractors;
     final ExecutorService sentenceConsumers;
@@ -53,6 +54,7 @@ public class Construct {
                       AccumulativeAPTStore lexiconStore,
                       AccumulativeLazyAPT everythingCounter,
                       Collection<File> files,
+                      Set<String> blacklist,
                       ExecutorService sentenceExtractors,
                       ExecutorService sentenceConsumers) {
         this.descriptor = descriptor;
@@ -62,6 +64,7 @@ public class Construct {
         this.lexiconStore = lexiconStore;
         this.everythingCounter = everythingCounter;
         this.files.addAll(files);
+        this.blacklist.addAll(blacklist);
         this.sentenceExtractors = sentenceExtractors;
         this.sentenceConsumers = sentenceConsumers;
 
@@ -72,8 +75,7 @@ public class Construct {
             long timeElapsed = currentTime - lastReportTime;
             long sentsElapsed = numSents - lastReportNumSents;
             String sentsPerSecond = timeElapsed == 0 ? "inf" : Long.toString(Math.round((double) sentsElapsed / ((double) timeElapsed / 1000)));
-            String time =
-                    DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss").format(LocalDateTime.now());
+            String time = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss").format(LocalDateTime.now());
 
             if (lexiconStore.isClearingCache()) {
                 System.out.printf(
@@ -146,7 +148,7 @@ public class Construct {
         int max = 0;
         for (String[] entity : sentence) {
             int i = Integer.parseInt(entity[0]);
-            if (i  > max) {
+            if (i > max) {
                 max = i;
             }
         }
@@ -174,6 +176,8 @@ public class Construct {
         ArrayAPT[] apts = ArrayAPT.factory.fromGraph(graph);
 
         for (int i = 0; i < apts.length; i++) {
+            final String entity = ((IndexerImpl) entityIndexer).resolve(graph.entityIds[i]);
+            if (this.blacklist.contains(entity)) continue; // filter out blacklisted entities
             ArrayAPT apt = apts[i];
             if (apt != null) {
                 lexiconStore.include(graph.entityIds[i], apt);
@@ -200,7 +204,7 @@ public class Construct {
         reporter.task.run(); // one last time yo
     }
 
-    public static void construct(LexiconDescriptor lexiconDescriptor, int depth, Collection<File> files) throws IOException, InterruptedException {
+    public static void construct(LexiconDescriptor lexiconDescriptor, int depth, Collection<File> files, Set<String> blacklist) throws IOException, InterruptedException {
         AccumulativeLazyAPT everythingCounter = new AccumulativeLazyAPT();
         IndexerImpl entityIndexer = lexiconDescriptor.getEntityIndexer();
         RelationIndexer relationIndexer = lexiconDescriptor.getRelationIndexer();
@@ -218,6 +222,7 @@ public class Construct {
                     store,
                     everythingCounter,
                     files,
+                    blacklist,
                     Executors.newFixedThreadPool(numSentenceExtractors),
                     Executors.newFixedThreadPool(numSentenceConsumers));
 
@@ -247,8 +252,11 @@ public class Construct {
     public static void main(String[] args) throws IOException, InterruptedException {
         Options opts = new Options();
         new JCommander(opts, args);
-
+        System.out.println(opts);
+        ParameterValidator.atLeast(opts.parameters, 2);
         String dir = opts.parameters.get(0);
+        if (opts.clean)
+            FileUtils.deleteDirectory(new File(dir));
 
         Collection<File> files = opts.parameters
                 .subList(1, opts.parameters.size())
@@ -256,16 +264,33 @@ public class Construct {
                 .map(File::new)
                 .flatMap(Construct::extractFilesRecursively)
                 .collect(Collectors.toList());
-
-        construct(LexiconDescriptor.from(dir), opts.depth, files);
+        ParameterValidator.filesExist(files);
+        ParameterValidator.atLeast(files.stream().map(Object::toString).collect(Collectors.toList()), 1);
+        HashSet<String> bl = opts.blacklist == null ? new HashSet<>() : new HashSet<>(Files.readAllLines(Paths.get(opts.blacklist)));
+        construct(LexiconDescriptor.from(dir), opts.depth, files, bl);
     }
 
     public static class Options {
         @Parameter
         public List<String> parameters = new ArrayList<>();
 
-        @Parameter(names = { "-depth"}, description = "depth of trees to include")
+        @Parameter(names = {"-depth"}, description = "Depth of trees to include")
         public Integer depth = 3;
 
+        @Parameter(names = {"-blacklist"}, description = "List of entries that an elementary APT will not be built for")
+        public String blacklist = null;
+
+        @Parameter(names = {"-clean"}, description = "Delete output directory if it exists")
+        public boolean clean = false;
+
+        @Override
+        public String toString() {
+            return "Options{" +
+                    "parameters=" + parameters +
+                    ", depth=" + depth +
+                    ", blacklist='" + blacklist + '\'' +
+                    ", clean=" + clean +
+                    '}';
+        }
     }
 }
