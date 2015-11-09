@@ -61,18 +61,15 @@ public class Vectors {
 
             final String pathString = pathStringBuilder.toString();
 
-            String p = pathString.equals(":") ? "__EPSILON__" : pathString.substring(0, pathString.length() - 2);
+            String p = pathString.equals(":") ? "__EPSILON__" : pathString.substring(0, pathString.length() - 1);
             final float pathScore = pathMap.get(p);
-
-            System.out.println(p);
-            System.out.println(pathMap);
 
             ((ArrayAPT) node).forEach((eid, score) -> {
                 try {
                     out.write(pathString);
                     out.write(resolve ? entityIndexer.resolve(eid) : eid.toString());
                     out.write("\t");
-                    out.write(Double.toString(Math.log(((score * pathScore) / (node.sum() * eventMap.get(pathString + eid.toString())))) < 0.d ? 0.d : Math.log(((score * pathScore) / (node.sum() * eventMap.get(pathString + eid.toString()))))));
+                    out.write(Double.toString(Math.log((score * pathScore)) - Math.log((node.sum() * eventMap.get(pathString + (resolve ? entityIndexer.resolve(eid) : eid.toString())))) < 0.d ? 0.d : Math.log((score * pathScore)) - Math.log((node.sum() * eventMap.get(pathString + (resolve ? entityIndexer.resolve(eid) : eid.toString()))))));
                     out.write("\t");
                 } catch (IOException e) {
                     throw new RuntimeException(e);
@@ -169,6 +166,10 @@ public class Vectors {
                                    final Writer out,
                                    final boolean resolve,
                                    final boolean normalise) throws IOException {
+
+        Map<String, Float> pathMap = new HashMap<>();
+        Map<String, Float> eventMap = new HashMap<>();
+
         final AtomicInteger numAptsProcessed = new AtomicInteger(0);
 
         final Daemon watcher = new Daemon(() -> {
@@ -177,32 +178,27 @@ public class Vectors {
 
         watcher.start();
 
-        Map<String, Float> pathMap = new HashMap<>();
-        Map<String, Float> eventMap = new HashMap<>();
-
         // Collect necessary counts
         for (Map.Entry<Integer, ArrayAPT> entry : aptStore) {
-            int entityId = entry.getKey();
             ArrayAPT apt = entry.getValue();
 
             apt.walk((path, node) -> {
                 StringBuilder pathStringBuilder = new StringBuilder();
 
                 if (path.length > 0) {
-                    pathStringBuilder.append(Integer.toString(path[0]));
+                    pathStringBuilder.append(resolve ? relationIndexer.resolve(path[0]) : Integer.toString(path[0]));
                 }
 
                 for (int i = 1; i < path.length; i++) {
                     pathStringBuilder.append("»");
-                    pathStringBuilder.append(Integer.toString(path[i]));
+                    pathStringBuilder.append(resolve ? relationIndexer.resolve(path[i]) : Integer.toString(path[i]));
                 }
 
                 String p = pathStringBuilder.toString().equals("") ? "__EPSILON__" : pathStringBuilder.toString();
-
                 pathMap.compute(p, (k, v) -> v == null ? 1.f : v + 1.f);
 
                 ((ArrayAPT) node).forEach((eid, score) -> {
-                    eventMap.compute(String.format("%s:%d", pathStringBuilder.toString(), entityId),
+                    eventMap.compute(String.format("%s:%s", pathStringBuilder.toString(), resolve ? entityIndexer.resolve(eid) : String.format("%d", eid)),
                             (k, v) -> v == null ? 1.f : v + 1.f);
                 });
             });
