@@ -3,12 +3,12 @@ package uk.ac.susx.tag.apt.tasks;
 
 import com.beust.jcommander.JCommander;
 import com.beust.jcommander.Parameter;
-import org.springframework.util.StreamUtils;
 import uk.ac.susx.tag.apt.*;
 import uk.ac.susx.tag.apt.backend.LevelDBByteStore;
 import uk.ac.susx.tag.apt.backend.LexiconDescriptor;
 import uk.ac.susx.tag.apt.util.Daemon;
 import uk.ac.susx.tag.apt.util.IO;
+import uk.ac.susx.tag.apt.util.ParameterValidator;
 import uk.ac.susx.tag.apt.util.RelationIndexer;
 
 import java.io.IOException;
@@ -21,6 +21,26 @@ import java.util.concurrent.atomic.AtomicInteger;
  */
 public class Vectors {
 
+    /**
+     * Write vectors without resolving the paths, e.g. the three-feature vector
+     * see/V	:i/LS	5.0	:see/V	190.0	:in/CONJ	5.0
+     *
+     * becomes
+     *
+     * see/V	:0	5.0	:2	190.0	:10	5.0
+     *
+     */
+    public static void writeVector(ArrayAPT apt, Writer out, boolean normalise, float sum) {
+        writeVector(apt, out, null, null, normalise, false, sum);
+    }
+
+    // TODO: could do with a more elegant solution to ppmi vs. non-ppmi vectors
+    public static void writePPMIVector(ArrayAPT apt, Writer out, boolean normalise, float sum,
+                                       Map<String, Float> pathMap, Map<String, Float> eventMap) {
+        writePPMIVector(apt, out, null, null, normalise, false, sum, pathMap, eventMap);
+    }
+
+    // TODO: Support normalised PPMI vectors
     public static void writePPMIVector(ArrayAPT apt, Writer out, Resolver<String> entityIndexer,
                                        RelationIndexer relationIndexer, boolean normalise, boolean resolve, float sum,
                                        Map<String, Float> pathMap, Map<String, Float> eventMap) {
@@ -99,6 +119,7 @@ public class Vectors {
                                 final Resolver<String> entityIndexer,
                                 final RelationIndexer relationIndexer,
                                 final Writer out,
+                                final boolean resolve,
                                 final boolean normalise) throws IOException {
 
 
@@ -126,7 +147,10 @@ public class Vectors {
             });
 			// For the normalisation business it might be easiest to walk every path twice
 
-			writeVector(apt, out, entityIndexer, relationIndexer, normalise, true, sum.f);
+            if (resolve)
+                writeVector(apt, out, entityIndexer, relationIndexer, normalise, true, sum.f);
+            else
+                writeVector(apt, out, normalise, sum.f);
 
             out.write("\n");
 
@@ -143,6 +167,7 @@ public class Vectors {
                                    final Resolver<String> entityIndexer,
                                    final RelationIndexer relationIndexer,
                                    final Writer out,
+                                   final boolean resolve,
                                    final boolean normalise) throws IOException {
         final AtomicInteger numAptsProcessed = new AtomicInteger(0);
 
@@ -191,7 +216,10 @@ public class Vectors {
             out.write(entityIndexer.resolve(entityId));
             out.write("\t");
 
-            writePPMIVector(apt, out, entityIndexer, relationIndexer, normalise, true, 0.f, pathMap, eventMap);
+            if (resolve)
+                writePPMIVector(apt, out, entityIndexer, relationIndexer, normalise, true, 0.f, pathMap, eventMap);
+            else
+                writePPMIVector(apt, out, normalise, 0.f, pathMap, eventMap);
 
             out.write("\n");
 
@@ -204,11 +232,14 @@ public class Vectors {
         Options opts = new Options();
 
         new JCommander(opts, args);
+        System.out.println(opts);
 
-
+        ParameterValidator.atLeast(opts.parameters, 2);
         String lexiconDirectory = opts.parameters.get(0);
+        ParameterValidator.isLexicon(lexiconDirectory);
         String outputFilename = opts.parameters.get(1);
         boolean normalise = opts.normalise;
+        boolean resolve = !opts.compact;
         boolean ppmi = opts.ppmi;
 
 
@@ -224,9 +255,9 @@ public class Vectors {
              Writer out = IO.writer(outputFilename)) {
 
                 if (!ppmi) {
-                    vectors(cachedAPTStore, lexiconDescriptor.getEntityIndexer(), lexiconDescriptor.getRelationIndexer(), out, normalise);
+                    vectors(cachedAPTStore, lexiconDescriptor.getEntityIndexer(), lexiconDescriptor.getRelationIndexer(), out, resolve, normalise);
                 } else {
-                    ppmiVectors(cachedAPTStore, lexiconDescriptor.getEntityIndexer(), lexiconDescriptor.getRelationIndexer(), out, normalise);
+                    ppmiVectors(cachedAPTStore, lexiconDescriptor.getEntityIndexer(), lexiconDescriptor.getRelationIndexer(), out, resolve, normalise);
                 }
         }
     }
@@ -243,5 +274,19 @@ public class Vectors {
 
         @Parameter(names = {"-ppmi"}, description = "Create ppmi weighted Vectors")
         public boolean ppmi = false;
+
+        @Parameter(names = {"-compact"}, description = "Compact path indices into lemmas")
+        public boolean compact = false;
+
+        @Override
+        public String toString() {
+            return "Options{" +
+                    "parameters=" + parameters +
+                    ", cacheSize=" + cacheSize +
+                    ", normalise=" + normalise +
+                    ", ppmi=" + ppmi +
+                    ", compact=" + compact +
+                    '}';
+        }
     }
 }
