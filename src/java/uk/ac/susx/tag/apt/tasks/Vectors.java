@@ -89,7 +89,7 @@ public class Vectors {
             int entityId = entry.getKey();
             ArrayAPT apt = entry.getValue();
 
-            out.write(entityIndexer.resolve(entityId));
+            out.write(resolve ? entityIndexer.resolve(entityId) : entityId + "");
             out.write("\t");
 
             class mutableFloat {
