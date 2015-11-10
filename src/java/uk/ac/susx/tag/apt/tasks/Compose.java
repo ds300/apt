@@ -271,6 +271,7 @@ public class Compose {
     }
 
     public static void main(String[] args) throws Exception {
+        System.out.println("Starting composition");
         Options opts = new Options();
         new JCommander(opts, args);
         System.out.println(opts);

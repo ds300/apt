@@ -117,6 +117,7 @@ public class Vectors {
     }
 
     public static void main(String[] args) throws IOException {
+        System.out.println("Starting convertion of elementary APTs to vectors");
         Options opts = new Options();
 
         new JCommander(opts, args);
