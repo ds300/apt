@@ -42,7 +42,7 @@ public class Compose {
         @Parameter(names = {"cache-size"}, description = "The maximum size of the in-memory APT cache")
         public int cacheSize = 100000;
 
-        @Parameter(names = {"-threads"}, description = "The maximum size of the in-memory APT cache")
+        @Parameter(names = {"-threads"}, description = "How many composer threads to use")
         public int threads = 2;
 
         @Parameter(names = {"method"}, description = "The method of composition to use. One of: sum, sum*")
