@@ -69,12 +69,12 @@ public class Vectors {
     }
 
 
-    public static void vectors (final LRUCachedAPTStore<ArrayAPT> aptStore,
-                                final Resolver<String> entityIndexer,
-                                final RelationIndexer relationIndexer,
-                                final Writer out,
-                                final boolean resolve,
-                                final boolean normalise) throws IOException {
+    public static void vectors(final LRUCachedAPTStore<ArrayAPT> aptStore,
+                               final Resolver<String> entityIndexer,
+                               final RelationIndexer relationIndexer,
+                               final Writer out,
+                               final boolean resolve,
+                               final boolean normalise) throws IOException {
 
 
         final AtomicInteger numAptsProcessed = new AtomicInteger(0);
@@ -84,36 +84,35 @@ public class Vectors {
         }, 5000);
 
         watcher.start();
+        try {
+            for (Map.Entry<Integer, ArrayAPT> entry : aptStore) {
+                int entityId = entry.getKey();
+                ArrayAPT apt = entry.getValue();
 
-        for (Map.Entry<Integer, ArrayAPT> entry : aptStore) {
-            int entityId = entry.getKey();
-            ArrayAPT apt = entry.getValue();
+                out.write(entityIndexer.resolve(entityId));
+                out.write("\t");
 
-            out.write(entityIndexer.resolve(entityId));
-            out.write("\t");
+                class mutableFloat {
+                    float f = 0;
+                }
+                final mutableFloat sum = new mutableFloat();
+                apt.walk((path, a) -> {
+                    sum.f += a.sum();
+                });
+                // For the normalisation business it might be easiest to walk every path twice
 
-            class mutableFloat {
-                float f = 0;
+                if (resolve)
+                    writeVector(apt, out, entityIndexer, relationIndexer, normalise, true, sum.f);
+                else
+                    writeVector(apt, out, normalise, sum.f);
+                out.write("\n");
+
+                numAptsProcessed.incrementAndGet();
             }
-			final mutableFloat sum = new mutableFloat();
-            apt.walk((path, a) -> {
-                sum.f += a.sum();
-            });
-			// For the normalisation business it might be easiest to walk every path twice
-
-            if(resolve)
-                writeVector(apt, out, entityIndexer, relationIndexer, normalise, true, sum.f);
-            else
-                writeVector(apt, out, normalise, sum.f);
-            out.write("\n");
-
-            numAptsProcessed.incrementAndGet();
+        } finally {
+            watcher.stop();
+            watcher.task.run();
         }
-
-
-        watcher.stop();
-
-        watcher.task.run();
     }
 
     public static void main(String[] args) throws IOException {
