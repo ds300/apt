@@ -42,7 +42,7 @@ public class Compose {
         @Parameter(names = {"cache-size"}, description = "The maximum size of the in-memory APT cache")
         public int cacheSize = 100000;
 
-        @Parameter(names = {"-threads"}, description = "The maximum size of the in-memory APT cache")
+        @Parameter(names = {"-threads"}, description = "How many composer threads to use")
         public int threads = 2;
 
         @Parameter(names = {"method"}, description = "The method of composition to use. One of: sum, sum*")
@@ -211,6 +211,7 @@ public class Compose {
     public static void doComposition(APTComposer<ArrayAPT> composer, Indexer<String> entityIndexer, RelationIndexer relationIndexer,
                                      LRUCachedAPTStore lexiconStore, Options opts, File outputDir,
                                      List<String[]> sentence) throws IOException {
+        final int sentenceNum = sentId.getAndIncrement();
         RGraph graph = Construct.sentence2Graph(entityIndexer, relationIndexer, sentence);
         ArrayAPT[] composed = composer.compose(lexiconStore, graph);
         ArrayAPT rootNode = composed[graph.sorted()[0]];
@@ -227,7 +228,7 @@ public class Compose {
             }
         });
 
-        try (Writer out = IO.writer(new File(outputDir, pad(sentId.get()) + ".sent"))) {
+        try (Writer out = IO.writer(new File(outputDir, pad(sentenceNum) + ".sent"))) {
             for (String[] token : sentence) {
                 if (token.length == 4) {
                     int id = Integer.parseInt(token[0]) - 1;
@@ -251,13 +252,13 @@ public class Compose {
         }
 
         if (!opts.skipTrees) {
-            try (OutputStream out = IO.outputStream(new File(outputDir, pad(sentId.get()) + ".apt.gz"))) {
+            try (OutputStream out = IO.outputStream(new File(outputDir, pad(sentenceNum) + ".apt.gz"))) {
                 out.write(rootNode.toByteArray());
             }
         }
 
         if (opts.vectors) {
-            File outputFile = new File(outputDir, pad(sentId.get()) + ".apt.vec.gz");
+            File outputFile = new File(outputDir, pad(sentenceNum) + ".apt.vec.gz");
             try (Writer out = IO.writer(outputFile)) {
                 if (opts.compact)
                     Vectors.writeVector(rootNode, out, false, rootNode.sum());
@@ -265,12 +266,10 @@ public class Compose {
                     Vectors.writeVector(rootNode, out, (Resolver<String>) entityIndexer, relationIndexer, false, true, rootNode.sum());
             }
         }
-
-        sentId.incrementAndGet();
-
     }
 
     public static void main(String[] args) throws Exception {
+        System.out.println("Starting composition");
         Options opts = new Options();
         new JCommander(opts, args);
         System.out.println(opts);
