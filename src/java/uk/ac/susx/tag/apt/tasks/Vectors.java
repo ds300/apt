@@ -57,7 +57,7 @@ public class Vectors {
             ((ArrayAPT) node).forEach((eid, score) -> {
                 try {
                     out.write(pathString);
-                    out.write(resolve ? entityIndexer.resolve(eid) : eid.toString());
+                    out.write(resolve ? (entityIndexer.resolve(eid) != null ? entityIndexer.resolve(eid) : "__F_A_I_L__") : eid.toString());
                     out.write("\t");
                     out.write(Float.toString(normalise ? score / sum : score));
                     out.write("\t");
@@ -76,6 +76,7 @@ public class Vectors {
                                final boolean resolve,
                                final boolean normalise) throws IOException {
 
+        int entityNullFails = 0;
 
         final AtomicInteger numAptsProcessed = new AtomicInteger(0);
 
@@ -89,7 +90,13 @@ public class Vectors {
                 int entityId = entry.getKey();
                 ArrayAPT apt = entry.getValue();
 
-                out.write(entityIndexer.resolve(entityId));
+                String entity = entityIndexer.resolve(entityId);
+                if (entity == null) {
+                    entityNullFails++;
+                    entity = "__F_A_I_L__";
+                }
+
+                out.write(entity);
                 out.write("\t");
 
                 class mutableFloat {
@@ -113,6 +120,8 @@ public class Vectors {
             watcher.stop();
             watcher.task.run();
         }
+
+        System.out.println(entityNullFails + " NULL fails encountered during vectorisation!");
     }
 
     public static void main(String[] args) throws IOException {

@@ -71,18 +71,39 @@ public class IO {
     }
     public static PersistentHashMap getIndexerMapFromTSVFile(File file) throws IOException {
         ITransientMap result = PersistentHashMap.EMPTY.asTransient();
-
+        String failToken = "__S_P_A_C_E__";
+        
         if (file.exists()) {
             try (BufferedReader in = IO.reader(file)) {
                 String line;
+                int i = 0;
                 while ((line = in.readLine()) != null) {
+                    /*
+                    Thomas 10/3/2016: entity-index.tsv.gz might contain a space as an entity
+                    When the stuff is trimmed in the line below, the result is obviously no
+                    longer a tuple separated by a tab, hence the code crashes here.
+
+                     There's three variants to overcome that issue, none of which are free
+                     of any further risks downstream.
+
+                     1) Ignore that entity
+                     2) Put the space back in place
+                     3) Replace the space by some random string, e.g. __S_P_A_C_E__
+
+                     After careful consideration, I opted for 3) in the hopes that nothing
+                     will break further downstream.
+                     */
                     line = line.trim();
+                    i++;
                     if (line.length() != 0) {
                         String[] parts = line.split("\t");
                         if (parts.length == 2) {
                             result = result.assoc(parts[0], new Integer(parts[1]));
+                        } else if (parts.length == 1) { // Thats our error case elaborated above
+                            result = result.assoc(String.format("%s_%d", failToken, i), new Integer(parts[0]));
+                            System.out.println("Trim fail at line " + i + "!");
                         } else {
-                            throw new Error("expecting only tuples. got: '"+line+"'");
+                            throw new Error("expecting only tuples. got: '"+line+"' at line " + i + "!");
                         }
                     }
                 }
