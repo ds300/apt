@@ -52,6 +52,29 @@ public class AccumulativeLazyAPT implements APT {
         for (AccumulativeLazyAPT apt : edges.values()) {
             s += apt.size();
         }
+
+        if (s < 0) {
+            System.out.println("About to file as size is negative: " + s);
+            System.out.println("Entity Score size: " + entityScores.size());
+            System.out.println("Shifted entity score size: " + (entityScores.size() << 3));
+            System.out.println("Edge Size: " + (edges.size() * 4));
+            System.out.println("APT Sizes...");
+
+            int ss = 16;
+            ss += entityScores.size() << 3;
+            ss += 4 * edges.size();
+
+            int i = 0;
+            for (AccumulativeLazyAPT apt : edges.values()) {
+                ss += apt.size();
+                i++;
+
+                if (ss < 0) {
+                    System.out.println("Negative Array size after " + i + " iterations!");
+                }
+            }
+        }
+
         return s;
     }
 
