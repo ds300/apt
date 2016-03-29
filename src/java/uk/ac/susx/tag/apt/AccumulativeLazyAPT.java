@@ -53,6 +53,7 @@ public class AccumulativeLazyAPT implements APT {
             s += apt.size();
         }
 
+
         if (s < 0) {
             System.out.println("About to file as size is negative: " + s);
             System.out.println("Entity Score size: " + entityScores.size());
@@ -69,10 +70,14 @@ public class AccumulativeLazyAPT implements APT {
                 ss += apt.size();
                 i++;
 
-                if (ss < 0) {
-                    System.out.println("Negative Array size after " + i + " iterations!");
-                }
+                System.out.println("\tIteration=[" + i + "]; size=" + ss);
             }
+        }
+
+        if (s < 0) {
+            System.out.println("s=" + s);
+            System.out.println("Integer.MAX_VALUE=" + Integer.MAX_VALUE);
+            System.out.println("Long.MAX_VALUE=" + Long.MAX_VALUE);
         }
 
         return s;
