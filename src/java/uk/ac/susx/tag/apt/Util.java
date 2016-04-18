@@ -1,6 +1,8 @@
 package uk.ac.susx.tag.apt;
 
 
+import pl.edu.icm.jlargearrays.ByteLargeArray;
+
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -16,16 +18,32 @@ public class Util {
         return int2bytes(Float.floatToRawIntBits(value));
     }
 
+    public static ByteLargeArray float2largeBytes(float value) {
+        return int2largeBytes(Float.floatToRawIntBits(value));
+    }
+
     public static void float2bytes (float value, byte[] bytes, int offset) {
         int2bytes(Float.floatToRawIntBits(value), bytes, offset);
+    }
+
+    public static void float2largeBytes(float value, ByteLargeArray bytes, long offset) {
+        int2largeBytes(Float.floatToRawIntBits(value), bytes, offset);
     }
 
     public static float bytes2float (byte[] bytes) {
         return Float.intBitsToFloat(bytes2int(bytes));
     }
 
+    public static float largeBytes2float(ByteLargeArray bytes) {
+        return Float.intBitsToFloat(largeBytes2int(bytes));
+    }
+
     public static float bytes2float (byte[] bytes, int offset) {
         return Float.intBitsToFloat(bytes2int(bytes, offset));
+    }
+
+    public static float largeBytes2float(ByteLargeArray bytes, long offset) {
+        return Float.intBitsToFloat(largeBytes2int(bytes, offset));
     }
 
     public static byte[] int2bytes (int i) {
@@ -34,6 +52,11 @@ public class Util {
         return bytes;
     }
 
+    public static ByteLargeArray int2largeBytes(int i) {
+        ByteLargeArray bytes = new ByteLargeArray(4);
+        int2largeBytes(i, bytes, 0);
+        return bytes;
+    }
 
     public static void int2bytes (int i, byte[] bytes, int offset) {
         bytes[offset + 0] = (byte)(i >>> 24);
@@ -42,8 +65,19 @@ public class Util {
         bytes[offset + 3] = (byte) i;
     }
 
+    public static void int2largeBytes(int i, ByteLargeArray bytes, long offset) {
+        bytes.setByte(offset, (byte)(i >>> 24));
+        bytes.setByte(offset + 1, (byte)(i >>> 16));
+        bytes.setByte(offset + 2, (byte)(i >>> 8));
+        bytes.setByte(offset + 3, (byte) i);
+    }
+
     public static int bytes2int(byte[] bytes) {
         return bytes2int(bytes, 0);
+    }
+
+    public static int largeBytes2int(ByteLargeArray bytes) {
+        return largeBytes2int(bytes, 0);
     }
 
     public static int bytes2int(byte[] bytes, int offset) {
@@ -54,10 +88,26 @@ public class Util {
         return result;
     }
 
+    public static int largeBytes2int(ByteLargeArray bytes, long offset) {
+        int result = bytes.getByte(offset + 3)&0xFF;
+
+        result = result ^ ((bytes.getByte(offset + 2)&0xff) << 8);
+        result = result ^ ((bytes.getByte(offset + 1)&0xff) << 16);
+        result = result ^ ((bytes.getByte(offset)&0xff) << 24);
+
+        return result;
+    }
+
 
     public static byte[] long2bytes (long i) {
         byte[] bytes = new byte[8];
         long2bytes(i, bytes, 0);
+        return bytes;
+    }
+
+    public static ByteLargeArray long2largeBytes(long i) {
+        ByteLargeArray bytes = new ByteLargeArray(8);
+        long2largeBytes(i, bytes, 0);
         return bytes;
     }
 
@@ -71,9 +121,23 @@ public class Util {
         bytes[offset + 6] = (byte)(i >>> 8);
         bytes[offset + 7] = (byte)i;
     }
+
+    public static void long2largeBytes(long i, ByteLargeArray bytes, long offset) {
+        bytes.setByte(offset, (byte)(i >>> 56));
+        bytes.setByte(offset + 1, (byte)(i >>> 48));
+        bytes.setByte(offset + 2, (byte)(i >>> 40));
+        bytes.setByte(offset + 3, (byte)(i >>> 32));
+        bytes.setByte(offset + 4, (byte)(i >>> 24));
+        bytes.setByte(offset + 5, (byte)(i >>> 16));
+        bytes.setByte(offset + 6, (byte)(i >>> 8));
+        bytes.setByte(offset + 7, (byte)i);
+    }
+
     public static long bytes2long(byte[] bytes) {
         return bytes2long(bytes, 0);
     }
+
+
 
     public static long bytes2long(byte[] bytes, int offset) {
         long result = bytes[offset + 7]&0xFFl;
@@ -84,6 +148,18 @@ public class Util {
         result = result ^ ((bytes[offset + 2]&0xffl) << 40);
         result = result ^ ((bytes[offset + 1]&0xffl) << 48);
         result = result ^ ((bytes[offset + 0]&0xffl) << 56);
+        return result;
+    }
+
+    public static long largeBytes2long(ByteLargeArray bytes, long offset) {
+        long result = bytes.get(offset + 7)&0xFFl;
+        result = result ^ ((bytes.get(offset + 6)&0xffl) << 8);
+        result = result ^ ((bytes.get(offset + 5)&0xffl) << 16);
+        result = result ^ ((bytes.get(offset + 4)&0xffl) << 24);
+        result = result ^ ((bytes.get(offset + 3)&0xffl) << 32);
+        result = result ^ ((bytes.get(offset + 2)&0xffl) << 40);
+        result = result ^ ((bytes.get(offset + 1)&0xffl) << 48);
+        result = result ^ ((bytes.get(offset + 0)&0xffl) << 56);
         return result;
     }
 

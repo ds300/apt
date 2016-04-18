@@ -72,7 +72,7 @@ public class IO {
     public static PersistentHashMap getIndexerMapFromTSVFile(File file) throws IOException {
         ITransientMap result = PersistentHashMap.EMPTY.asTransient();
         String failToken = "__S_P_A_C_E__";
-        
+
         if (file.exists()) {
             try (BufferedReader in = IO.reader(file)) {
                 String line;

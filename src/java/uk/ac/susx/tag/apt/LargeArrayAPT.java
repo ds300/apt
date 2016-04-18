@@ -1,0 +1,1187 @@
+package uk.ac.susx.tag.apt;
+
+
+import it.unimi.dsi.fastutil.ints.Int2DoubleMap;
+import it.unimi.dsi.fastutil.ints.Int2DoubleRBTreeMap;
+import it.unimi.dsi.fastutil.ints.Int2DoubleSortedMap;
+import it.unimi.dsi.fastutil.ints.Int2ObjectSortedMap;
+import uk.ac.susx.mlcl.lib.collect.SparseDoubleVector;
+
+import java.io.IOException;
+import java.io.PrintWriter;
+import java.io.Writer;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.function.BiConsumer;
+
+/**
+ * @author ds300
+ */
+public class LargeArrayAPT implements APT {
+    static final int[] EMPTY_INTS = new int[0];
+    static final float[] EMPTY_FLOATS = new float[0];
+    static final LargeArrayAPT[] EMPTY_KIDS = new LargeArrayAPT[0];
+
+    int[] edges  = EMPTY_INTS; // indices of relations to kids at same index
+    LargeArrayAPT[] kids = EMPTY_KIDS; // kids of current apts
+    int[] entities = EMPTY_INTS; // "sibling" nodes of current apts, indices of lexems at same path
+    float[] scores = EMPTY_FLOATS; // co-occurrence counts of current apt
+    private float sum = 0; // sum of all co-occurrence counts of current apt
+
+    private LargeArrayAPT() {}
+
+    public static final APTFactory<LargeArrayAPT> factory = new Factory();
+
+    public static class Factory implements APTFactory<LargeArrayAPT> {
+        @Override
+        public LargeArrayAPT fromByteArray(byte[] bytes) throws IOException {
+            return LargeArrayAPT.fromByteArray(bytes);
+        }
+
+        @Override
+        public LargeArrayAPT empty() {
+            return new LargeArrayAPT();
+        }
+
+//        @Override
+//        public ArrayAPT[] fromGraph(RGraph graph) {
+//            final ArrayAPT[] result = new ArrayAPT[graph.entityIds.length];
+//
+//            final int numRelations = graph.numRelations;
+//            RGraph.Relation[] relations = graph.relations;
+//
+//            // first iterate over relations and make sure that the tree structure is fully reified
+//            for (int i=0; i<numRelations; i++) {
+//                RGraph.Relation r = relations[i];
+//
+//                // if governor < 0 it is taken to point to the root node
+//                if (r.governor >= 0) {
+//                    // this relation is between two real nodes, so find/make them
+//                    ArrayAPT parent = result[r.governor];
+//                    ArrayAPT child;
+//
+//                    if (parent == null) {
+//                        parent = new ArrayAPT();
+//                        result[r.governor] = parent;
+//                    }
+//
+//                    child = parent.getChild(r.type);
+//
+//                    if (child == null) {
+//                        child = result[r.dependent];
+//
+//                        if (child == null) {
+//                            child = new ArrayAPT();
+//                        }
+//
+//                        parent.insertChild(r.type, child);
+//                    }
+//
+//                    if (result[r.dependent] != child) {
+//                        // todo: merge nodeses
+//                    }
+//
+//                    // now add inverse relation from child to parent
+//
+//                    child.insertChild(-r.type, parent);
+//
+//                    result[r.dependent] = child;
+//
+//                } else {
+//                    // relation governer is root, so just make a new node for the dependent if need be
+//                    if (result[r.dependent] == null)
+//                        result[r.dependent] = new ArrayAPT();
+//                }
+//            }
+//
+//            // now iterate over entity ids and, where appropriate, increment the count at their nodes
+//            for (int i = 0; i < graph.entityIds.length; i++) {
+//                int eid = graph.entityIds[i];
+//                ArrayAPT node = result[i];
+//                if (node != null) {
+//                    if (eid != -1) {
+//                        node.incrementScore(eid, 1);
+//                    } else {
+//                        // -1 is a pseudo entityID which means "This should contribute towards the probability mass, but
+//                        // don't bother actually storing the count."
+//                        node.sum += 1;
+//                    }
+//                }
+//            }
+//
+//            return result;
+//        }
+
+        // this is a stopgap algorithm which solves a problem with the one above. The plan is to implement a merge
+        // step for the above one to fix it's problem, since this one relies on topological sort and is therefore
+        // probably slower.
+        @Override
+        public LargeArrayAPT[] fromGraph(RGraph graph) {
+            LargeArrayAPT[] result = new LargeArrayAPT[graph.entityIds.length];
+            int[] sortedIndices = graph.sorted();
+            ArrayList<RGraph.Relation>[] outgoingEdges = new ArrayList[graph.entityIds.length];
+
+            for (RGraph.Relation r : graph.relations) {
+                if (r == null) break;
+                int gov = r.governor;
+                if (gov >= 0) {
+                    if (outgoingEdges[gov] == null) {
+                        outgoingEdges[gov] = new ArrayList<>(5);
+                    }
+                    outgoingEdges[gov].add(r);
+                }
+            }
+
+            for (int index : sortedIndices) {
+                ArrayList<RGraph.Relation> outgoings = outgoingEdges[index];
+                if (outgoings != null) {
+                    for (RGraph.Relation r : outgoings) {
+                        LargeArrayAPT parent = result[index];
+                        LargeArrayAPT child;
+
+                        if (parent == null) {
+                            parent = new LargeArrayAPT();
+                            result[index] = parent;
+                        }
+
+                        child = parent.getChild(r.type);
+
+                        if (child == null) {
+                            child = result[r.dependent];
+
+                            if (child == null) {
+                                child = new LargeArrayAPT();
+                            }
+
+                            parent.insertChild(r.type, child);
+                        }
+
+                        // now add inverse relation from child to parent
+
+                        child.insertChild(-r.type, parent);
+
+                        result[r.dependent] = child;
+                    }
+                }
+            }
+
+            // now iterate over entity ids and, where appropriate, increment the count at their nodes
+            for (int i = 0; i < graph.entityIds.length; i++) {
+                int eid = graph.entityIds[i];
+                LargeArrayAPT node = result[i];
+                if (node != null) {
+                    if (eid != -1) {
+                        node.incrementScore(eid, 1);
+                    } else {
+                        // -1 is a pseudo entityID which means "This should contribute towards the probability mass, but
+                        // don't bother actually storing the count."
+                        node.sum += 1;
+                    }
+                }
+            }
+
+            return result;
+
+        }
+    }
+
+    private LargeArrayAPT copyFor(int dep, LargeArrayAPT parent, int depth) {
+        LargeArrayAPT result = new LargeArrayAPT();
+        result.entities = entities;
+        result.scores = scores;
+        result.sum = sum;
+
+        if (depth > 0) {
+            result.edges = edges;
+            LargeArrayAPT[] newKids = Arrays.copyOf(kids, kids.length);
+
+            for (int i=0; i<newKids.length; i++) {
+                if (edges[i] == dep) {
+                    newKids[i] = parent;
+                } else {
+                    newKids[i] = newKids[i].copyFor(-edges[i], result, depth-1);
+                }
+            }
+
+            result.kids = newKids;
+        }
+
+
+
+        return result;
+    }
+
+
+    public LargeArrayAPT getChildAt(int... path) {
+        if (path.length == 0) return this;
+        else return getChild(path, 0);
+    }
+
+    @Override
+    public LargeArrayAPT getChild(int edge) {
+        int idx = Arrays.binarySearch(edges, edge);
+        if (idx >= 0)
+            return kids[idx];
+        else
+            return null;
+    }
+
+    private LargeArrayAPT getChild(int[] path, int offset) {
+        int idx = Arrays.binarySearch(edges, path[offset]);
+        if (idx < 0) {
+            return null;
+        } else if (offset == path.length - 1) {
+            return kids[idx];
+        } else {
+            return kids[idx].getChild(path, offset+1);
+        }
+    }
+
+
+
+    private void insertChild (int dep, LargeArrayAPT child) {
+        int idx = Arrays.binarySearch(edges, dep);
+        if (idx >= 0) {
+            kids[idx] = child;
+        } else {
+            int[] newEdges = new int[edges.length + 1];
+            LargeArrayAPT[] newKids = new LargeArrayAPT[edges.length + 1];
+
+            int insertionPoint = -(idx + 1);
+            if (insertionPoint != 0) {
+                System.arraycopy(edges, 0, newEdges, 0, insertionPoint);
+                System.arraycopy(kids, 0, newKids, 0, insertionPoint);
+            }
+            newEdges[insertionPoint] = dep;
+            newKids[insertionPoint] = child;
+            if (insertionPoint < edges.length) {
+                System.arraycopy(edges, insertionPoint, newEdges, insertionPoint + 1, edges.length - insertionPoint);
+                System.arraycopy(kids, insertionPoint, newKids, insertionPoint + 1, edges.length - insertionPoint);
+            }
+            edges = newEdges;
+            kids = newKids;
+        }
+    }
+
+    // mutating method, for use during construction time only
+    private void incrementScore(int entityId, float score) {
+        sum += score;
+        int idx = Arrays.binarySearch(entities, entityId);
+        if (idx >= 0) {
+            scores[idx] += score;
+        } else {
+            int[] newEntites = new int[entities.length + 1];
+            float[] newScores = new float[entities.length + 1];
+
+            int insertionPoint = -(idx + 1);
+            if (insertionPoint != 0) {
+                System.arraycopy(entities, 0, newEntites, 0, insertionPoint);
+                System.arraycopy(scores, 0, newScores, 0, insertionPoint);
+            }
+            newEntites[insertionPoint] = entityId;
+            newScores[insertionPoint] = score;
+
+            if (insertionPoint < entities.length) {
+                System.arraycopy(entities, insertionPoint, newEntites, insertionPoint + 1, entities.length - insertionPoint);
+                System.arraycopy(scores, insertionPoint, newScores, insertionPoint + 1, entities.length - insertionPoint);
+            }
+
+            entities = newEntites;
+            scores = newScores;
+        }
+    }
+
+    private static final String space = "|   ";
+    private static String repeatString(String s, int n) {
+        String result = "";
+        for (int i=0; i < n; i++) result += s;
+        return result;
+    }
+
+    private void printTo(Writer writer, int depth, Resolver<?> tokenResolver, Resolver<?> dependencyResolver, int returnPath) throws IOException {
+        writer.write(repeatString(space, depth) + "LABELS\n");
+
+        for (int i=0; i < entities.length; i++) {
+            int tkn = entities[i];
+            float score = scores[i];
+            writer.write(repeatString(space, depth) + "| " + tokenResolver.resolve(tkn).toString() + " ("+score+")\n");
+        }
+
+        writer.write(repeatString(space, depth) + "EDGES\n");
+
+        for (int i=0; i < edges.length; i++) {
+            int dep = edges[i];
+            if (dep != returnPath) {
+                LargeArrayAPT child = kids[i];
+                final String relString;
+                if (dep < 0) {
+                    relString = "_" + dependencyResolver.resolve(-dep).toString();
+                } else {
+                    relString = dependencyResolver.resolve(dep).toString();
+                }
+                writer.write(repeatString(space, depth) + "| " + relString + "\n");
+                child.printTo(writer, depth + 1, tokenResolver, dependencyResolver, -dep);
+            }
+        }
+    }
+
+    private static final Resolver<Integer> INTEGER_RESOLVER = new Resolver<Integer>() {
+        @Override
+        public Integer resolve(int index) {
+            return index;
+        }
+
+        @Override
+        public Iterable<Integer> getIndices() {
+            return null;
+        }
+    };
+
+    public void print() {
+        print(INTEGER_RESOLVER, INTEGER_RESOLVER);
+    }
+
+    public void print(Resolver<?> tokenResolver, Resolver<?> dependencyResolver) {
+        try {
+            PrintWriter writer = new PrintWriter(System.out);
+            printTo(writer, 0, tokenResolver, dependencyResolver, 0);
+            writer.flush();
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+
+    @Override
+    public float getScore(int entityId) {
+        int idx = Arrays.binarySearch(entities, entityId);
+        if (idx >= 0)
+            return scores[idx];
+        else
+            return 0;
+    }
+
+    @Override
+    public float sum() {
+        return sum;
+    }
+
+    @Override
+    public LargeArrayAPT merged(APT other, int depth) {
+        return merge(this, ensureArrayAPT(other), depth);
+    }
+
+    @Override
+    public LargeArrayAPT culled(int depth) {
+        return copyFor(0, this, depth);
+    }
+
+    @Override
+    public Int2FloatArraySortedMap entityScores() {
+        return new Int2FloatArraySortedMap(entities, scores);
+    }
+
+    @Override
+    public Int2ObjectSortedMap<APT> edges() {
+        return new Int2ObjectArraySortedMap<APT>(edges, kids);
+    }
+
+    @Override
+    public void walk(APTVisitor visitor) {
+        walk(visitor, Integer.MAX_VALUE);
+    }
+
+    @Override
+    public void walk(APTVisitor visitor, int depth) {
+        if (depth < 0) throw new IllegalArgumentException("depth must be >= 0");
+        walk(visitor, new int[0], 0, depth);
+    }
+
+    private static int[] append(int[] a, int x) {
+        int[] res = new int[a.length+1];
+        System.arraycopy(a,0,res,0,a.length);
+        res[a.length] = x;
+        return res;
+    }
+
+    private void walk(APTVisitor<LargeArrayAPT> visitor, int[] path, int returnEdge, int depth) {
+        visitor.visit(path, this);
+        if (depth > 0) {
+            for (int i=0;i<edges.length;i++) {
+                int edge = edges[i];
+                if (edge != returnEdge) {
+                    kids[i].walk(visitor, append(path, edge), -edge, depth-1);
+                }
+            }
+        }
+    }
+
+    public void forEach(BiConsumer<Integer, Float> consumer) {
+        for (int i = 0; i < entities.length; i++) {
+            consumer.accept(entities[i], scores[i]);
+        }
+    }
+
+    private interface CloneModifier {
+        void modify (LargeArrayAPT clone);
+    }
+
+    private LargeArrayAPT modifyCloned (CloneModifier modifier) {
+        LargeArrayAPT clone = copyFor(0, this, Integer.MAX_VALUE);
+        modifier.modify(clone);
+        return clone;
+    }
+
+    public static LargeArrayAPT ensureArrayAPT (APT thing) {
+        if (thing instanceof LargeArrayAPT) {
+            return (LargeArrayAPT) thing;
+        } else {
+            return fromByteArray(thing.toByteArray());
+        }
+    }
+
+    @Override
+    public LargeArrayAPT withScore(final int entityId, final float score) {
+        return modifyCloned(new CloneModifier() {
+            @Override
+            public void modify(LargeArrayAPT clone) {
+                int idx = Arrays.binarySearch(entities, entityId);
+                if (idx < 0) {
+                    clone.sum += score;
+                    int[] newEntities = new int[entities.length + 1];
+                    float[] newScores = new float[entities.length + 1];
+
+                    int insertionPoint = -(idx + 1);
+                    if (insertionPoint != 0) {
+                        System.arraycopy(entities, 0, newEntities, 0, insertionPoint);
+                        System.arraycopy(scores, 0, newScores, 0, insertionPoint);
+                    }
+                    newEntities[insertionPoint] = entityId;
+                    newScores[insertionPoint] = score;
+                    if (insertionPoint < entities.length) {
+                        System.arraycopy(entities, insertionPoint, newEntities, insertionPoint + 1, entities.length - insertionPoint);
+                        System.arraycopy(scores, insertionPoint, newScores, insertionPoint + 1, entities.length - insertionPoint);
+                    }
+                    clone.entities = newEntities;
+                    clone.scores = newScores;
+                } else {
+                    clone.sum -= scores[idx];
+                    clone.sum += score;
+                    clone.scores = new float[scores.length];
+                    System.arraycopy(scores, 0, clone.scores, 0, scores.length);
+                    clone.scores[idx] = score;
+                }
+            }
+        });
+    }
+
+    @Override
+    public LargeArrayAPT withIncrementedScore(final int entityId, final float score) {
+        return modifyCloned(new CloneModifier() {
+            @Override
+            public void modify(LargeArrayAPT clone) {
+                clone.sum += score;
+                int idx = Arrays.binarySearch(entities, entityId);
+                if (idx < 0) {
+                    int[] newEntities = new int[entities.length + 1];
+                    float[] newScores = new float[entities.length + 1];
+
+                    int insertionPoint = -(idx + 1);
+                    if (insertionPoint != 0) {
+                        System.arraycopy(entities, 0, newEntities, 0, insertionPoint);
+                        System.arraycopy(scores, 0, newScores, 0, insertionPoint);
+                    }
+                    newEntities[insertionPoint] = entityId;
+                    newScores[insertionPoint] = score;
+                    if (insertionPoint < entities.length) {
+                        System.arraycopy(entities, insertionPoint, newEntities, insertionPoint + 1, entities.length - insertionPoint);
+                        System.arraycopy(scores, insertionPoint, newScores, insertionPoint + 1, entities.length - insertionPoint);
+                    }
+                    clone.entities = newEntities;
+                    clone.scores = newScores;
+                } else {
+                    clone.scores = Arrays.copyOf(scores, scores.length);
+                    clone.scores[idx] += score;
+                }
+            }
+        });
+    }
+
+
+    @Override
+    public LargeArrayAPT withEdge(final int rel, APT child) {
+        if (rel == 0) throw new IllegalArgumentException("relation ids must not be zero");
+
+        LargeArrayAPT kid = ensureArrayAPT(child);
+
+        LargeArrayAPT aligned = kid.getChild(-rel);
+
+        if (aligned == null) {
+            aligned = new LargeArrayAPT();
+            LargeArrayAPT cloned = kid.modifyCloned(new CloneModifier() {
+                @Override
+                public void modify(LargeArrayAPT clone) {
+                    clone.insertChild(-rel, new LargeArrayAPT());
+                }
+            });
+            aligned.insertChild(rel, cloned);
+        }
+
+        return merge(this, aligned, Integer.MAX_VALUE);
+    }
+
+    public LargeArrayAPT withEdge(final int[] path, APT child) {
+        if (path.length < 1) throw new IllegalArgumentException("path must be longer than 0");
+
+        LargeArrayAPT toMerge = ensureArrayAPT(child);
+        for (int i = path.length-1; i >= 0; i--) {
+            toMerge = toMerge.withEdge(-path[i], factory.empty()).getChild(-path[i]);
+        }
+        return merge(this, toMerge, Integer.MAX_VALUE);
+    }
+
+
+    public static class Labels {
+        public int[] tokens;
+        public int[] counts;
+
+        public Labels(int[] tokens, int[] counts) {
+            this.tokens = tokens;
+            this.counts = counts;
+        }
+    }
+
+    /**
+     * instances of ScoreMerger are passed to {@link LargeArrayAPT#merge} to determine how shared entity scores are combined
+     * to form the merged APT.
+     */
+    public static interface ScoreMerger {
+        float merge (float scoreA, float scoreB, int entityId, LargeArrayAPT a, LargeArrayAPT b);
+        public static final ScoreMerger ADD = new ScoreMerger() {
+            @Override
+            public float merge(float scoreA, float scoreB, int entityId, LargeArrayAPT a, LargeArrayAPT b) {
+                return scoreA + scoreB;
+            }
+        };
+
+        public static final ScoreMerger MULTIPLY = new ScoreMerger() {
+            @Override
+            public float merge(float scoreA, float scoreB, int entityId, LargeArrayAPT a, LargeArrayAPT b) {
+                return scoreA * scoreB;
+            }
+        };
+
+        public static final ScoreMerger MIN = new ScoreMerger() {
+            @Override
+            public float merge(float scoreA, float scoreB, int entityId, LargeArrayAPT a, LargeArrayAPT b) {
+                return Math.min(scoreA, scoreB);
+            }
+        };
+
+        public static final ScoreMerger MAX = new ScoreMerger() {
+            @Override
+            public float merge(float scoreA, float scoreB, int entityId, LargeArrayAPT a, LargeArrayAPT b) {
+                return Math.max(scoreA, scoreB);
+            }
+        };
+    }
+
+    public static LargeArrayAPT merge(LargeArrayAPT a, LargeArrayAPT b, int depth) {
+        return merge(a, b, depth, ScoreMerger.ADD, 0, null);
+    }
+
+    public static LargeArrayAPT merge(LargeArrayAPT a, LargeArrayAPT b, int depth, ScoreMerger scoreMerger) {
+        return merge(a, b, depth, scoreMerger, 0, null);
+    }
+
+    private static LargeArrayAPT merge(LargeArrayAPT a, LargeArrayAPT b, int depth, ScoreMerger scoreMerger, int returnPath, LargeArrayAPT parent) {
+        final int[] a_edges = a.edges;
+        final int[] b_edges = b.edges;
+        final int[] a_entities = a.entities;
+        final int[] b_entities = b.entities;
+        final float[] a_scores = a.scores;
+        final float[] b_scores = b.scores;
+        final LargeArrayAPT[] a_kids = a.kids;
+        final LargeArrayAPT[] b_kids = b.kids;
+
+
+        LargeArrayAPT result = new LargeArrayAPT();
+
+
+        final int uniqueLabels = Util.countUnique(a_entities, b_entities);
+        int[] tokens = new int[uniqueLabels];
+        float[] scores = new float[uniqueLabels];
+
+        int i=0, x=0, y=0;
+
+        while (x < a_entities.length && y < b_entities.length) {
+            if (a_entities[x] == b_entities[y]) {
+                tokens[i] = a_entities[x];
+                scores[i] = scoreMerger.merge(a_scores[x], b_scores[y], a_entities[x], a, b);
+                x++;
+                y++;
+            } else if (a_entities[x] < b_entities[y]) {
+                tokens[i] = a_entities[x];
+                scores[i] = a_scores[x];
+                x++;
+            } else {
+                tokens[i] = b_entities[y];
+                scores[i] = b_scores[y];
+                y++;
+            }
+            i++;
+        }
+
+        if (x < a_entities.length) {
+            System.arraycopy(a_entities, x, tokens, i, a_entities.length - x);
+            System.arraycopy(a_scores, x, scores, i, a_entities.length - x);
+        } else if (y < b_entities.length) {
+            System.arraycopy(b_entities, y, tokens, i, b_entities.length - y);
+            System.arraycopy(b_scores, y, scores, i, b_entities.length - y);
+        }
+
+        result.entities = tokens;
+        result.scores = scores;
+
+        result.sum = 0;
+        for (float score : result.scores) result.sum += score;
+
+
+        final int uniqueEdges = Util.countUnique(a_edges, b_edges);
+        int[] edges = new int[uniqueEdges];
+        LargeArrayAPT[] kids = new LargeArrayAPT[uniqueEdges];
+
+        i=0; x=0; y=0;
+
+        while (x < a_edges.length && y < b_edges.length) {
+            int adep = a_edges[x];
+            int bdep = b_edges[y];
+            if (adep == bdep) {
+                edges[i] = adep;
+                if (adep == returnPath) {
+                    kids[i] = parent;
+                } else {
+                    kids[i] = merge(a_kids[x], b_kids[y], depth-1, scoreMerger, -adep, result);
+                }
+                x++;
+                y++;
+            } else if (adep < bdep) {
+                edges[i] = adep;
+                kids[i] = a_kids[x].copyFor(-adep, result, depth-1);
+                x++;
+            } else {
+                edges[i] = bdep;
+                kids[i] = b_kids[y].copyFor(-bdep, result, depth-1);
+                y++;
+            }
+            i++;
+        }
+
+        if (x < a_edges.length) {
+            System.arraycopy(a_edges, x, edges, i, a_edges.length - x);
+            System.arraycopy(a_kids, x, kids, i, a_edges.length - x);
+            while (i < uniqueEdges) {
+                kids[i] = kids[i].copyFor(-edges[i], result, depth-1);
+                i++;
+            }
+        } else if (y < b_edges.length) {
+            System.arraycopy(b_edges, y, edges, i, b_edges.length - y);
+            System.arraycopy(b_kids, y, kids, i, b_edges.length - y);
+            while (i < uniqueEdges) {
+                kids[i] = kids[i].copyFor(-edges[i], result, depth-1);
+                i++;
+            }
+        }
+
+        result.edges = edges;
+        result.kids = kids;
+
+        return result;
+    }
+
+    public static interface ScoreMerger2 {
+        Int2FloatArraySortedMap merge(LargeArrayAPT aptA, LargeArrayAPT aptB, int[] path);
+    }
+    public static enum EdgeMergePolicy {
+        KEEP_UNMATCHED,
+        KEEP_LEFT_UNMATCHED,
+        KEEP_RIGHT_UNMATCHED,
+        MERGE_WITH_EMPTY,
+        DO_NOT_MERGE
+    }
+
+    public static interface FloatCombiner {
+        float combine(float a, float b);
+        float leftOnly(float a);
+        float rightOnly(float b);
+    }
+    public enum ArithmeticOperator implements FloatCombiner {
+        ADD {
+            @Override
+            public float combine (float a, float b) {
+                return a + b;
+            }
+
+            @Override
+            public float leftOnly(float a) {
+                return a;
+            }
+
+            @Override
+            public float rightOnly(float b) {
+                return b;
+            }
+        },
+        MULT {
+            @Override
+            public float combine (float a, float b) {
+                return a * b;
+            }
+
+            @Override
+            public float leftOnly(float a) {
+                return 0;
+            }
+
+            @Override
+            public float rightOnly(float b) {
+                return 0;
+            }
+        },
+        // min and max asssume positive numbers.
+        MIN {
+            @Override
+            public float combine (float a, float b) {
+                return Math.min(a, b);
+            }
+
+            @Override
+            public float leftOnly(float a) {
+                return 0;
+            }
+
+            @Override
+            public float rightOnly(float b) {
+                return 0;
+            }
+
+        },
+        MAX {
+            @Override
+            public float combine (float a, float b) {
+                return Math.max(a, b);
+            }
+
+            @Override
+            public float leftOnly(float a) {
+                return a;
+            }
+
+            @Override
+            public float rightOnly(float b) {
+                return b;
+            }
+        }
+    }
+
+    public static class ArithmeticMerger implements ScoreMerger2 {
+        private final FloatCombiner combiner;
+
+        public ArithmeticMerger(FloatCombiner combiner) {
+            this.combiner = combiner;
+        }
+
+        @Override
+        public Int2FloatArraySortedMap merge(LargeArrayAPT aptA, LargeArrayAPT aptB, int[] path) {
+            final int[] a_entities = aptA.entities;
+            final int[] b_entities = aptB.entities;
+            final float[] a_scores = aptA.scores;
+            final float[] b_scores = aptB.scores;
+
+            final int uniqueLabels = Util.countUnique(a_entities, b_entities);
+            int[] tokens = new int[uniqueLabels];
+            float[] scores = new float[uniqueLabels];
+
+            int i=0, x=0, y=0;
+
+            while (x < a_entities.length && y < b_entities.length) {
+                if (a_entities[x] == b_entities[y]) {
+                    tokens[i] = a_entities[x];
+                    scores[i] = combiner.combine(a_scores[x], b_scores[y]);
+                    x++;
+                    y++;
+                } else if (a_entities[x] < b_entities[y]) {
+                    tokens[i] = a_entities[x];
+                    scores[i] = a_scores[x];
+                    x++;
+                } else {
+                    tokens[i] = b_entities[y];
+                    scores[i] = b_scores[y];
+                    y++;
+                }
+                i++;
+            }
+
+            if (x < a_entities.length) {
+                System.arraycopy(a_entities, x, tokens, i, a_entities.length - x);
+                System.arraycopy(a_scores, x, scores, i, a_entities.length - x);
+            } else if (y < b_entities.length) {
+                System.arraycopy(b_entities, y, tokens, i, b_entities.length - y);
+                System.arraycopy(b_scores, y, scores, i, b_entities.length - y);
+            }
+
+            return new Int2FloatArraySortedMap(tokens, scores);
+        }
+    }
+
+    public static LargeArrayAPT merge2(LargeArrayAPT a, LargeArrayAPT b, int depth, ScoreMerger2 scoreMerger, EdgeMergePolicy emp) {
+        return merge2(a, b, depth, scoreMerger, emp, new int[]{}, null);
+    }
+
+    private static LargeArrayAPT merge2(LargeArrayAPT a, LargeArrayAPT b, int depth, ScoreMerger2 scoreMerger, EdgeMergePolicy emp, int[] path, LargeArrayAPT parent) {
+        int returnPath = path.length > 0 ? -path[path.length-1] : 0;
+        final int[] a_edges = a.edges;
+        final int[] b_edges = b.edges;
+        final LargeArrayAPT[] a_kids = a.kids;
+        final LargeArrayAPT[] b_kids = b.kids;
+
+
+        LargeArrayAPT result = new LargeArrayAPT();
+
+        result.sum = a.sum + b.sum;
+
+        Int2FloatArraySortedMap arraySortedMap = scoreMerger.merge(a, b, path);
+
+        result.entities = arraySortedMap.keys;
+        result.scores = arraySortedMap.vals;
+
+        result.sum = 0;
+        for (float score : result.scores) result.sum += score;
+
+        int[] edges = new int[a_edges.length + b_edges.length];
+        LargeArrayAPT[] kids = new LargeArrayAPT[edges.length];
+
+        int i=0, // iterate over new arrays, will store their length at the end
+            x=0, // iterate over a_edges/kids
+            y=0; // iterate over b_edges/kids
+
+        while (x < a_edges.length && y < b_edges.length) {
+            int adep = a_edges[x];
+            int bdep = b_edges[y];
+            if (adep == bdep) {
+                edges[i] = adep;
+                if (adep == returnPath) {
+                    kids[i] = parent;
+                } else {
+                    kids[i] = merge2(a_kids[x], b_kids[y], depth - 1, scoreMerger, emp, append(path, adep), result);
+                }
+                x++;
+                y++;
+                i++;
+            } else if (adep < bdep) {
+                if (adep == returnPath) {
+                    edges[i] = adep;
+                    kids[i] = parent;
+                    i++;
+                } else {
+                    switch (emp) {
+                        case KEEP_UNMATCHED:
+                        case KEEP_LEFT_UNMATCHED:
+                            edges[i] = adep;
+                            kids[i] = a_kids[x].copyFor(-adep, result, depth-1);
+                            i++;
+                            break;
+                        case MERGE_WITH_EMPTY:
+                            edges[i] = adep;
+                            kids[i] = merge2(a_kids[x], new LargeArrayAPT(), depth - 1, scoreMerger, emp, append(path, adep), result);
+                            i++;
+                            break;
+                    }
+                }
+                x++;
+            } else {
+                if (bdep == returnPath) {
+                    edges[i] = bdep;
+                    kids[i] = parent;
+                    i++;
+                } else {
+                    switch (emp) {
+                        case KEEP_UNMATCHED:
+                        case KEEP_RIGHT_UNMATCHED:
+                            edges[i] = bdep;
+                            kids[i] = b_kids[y].copyFor(-bdep, result, depth-1);
+                            i++;
+                            break;
+                        case MERGE_WITH_EMPTY:
+                            edges[i] = bdep;
+                            kids[i] = merge2(new LargeArrayAPT(), b_kids[y], depth-1, scoreMerger, emp, append(path, bdep), result);
+                            i++;
+                            break;
+                    }
+                }
+                y++;
+            }
+        }
+
+        // this isn't very DRY dave
+        while (x < a_edges.length) {
+            int adep = a_edges[x];
+            if (adep == returnPath) {
+                edges[i] = adep;
+                kids[i] = parent;
+                i++;
+            } else {
+                switch (emp) {
+                    case KEEP_UNMATCHED:
+                    case KEEP_LEFT_UNMATCHED:
+                        edges[i] = adep;
+                        kids[i] = a_kids[x].copyFor(-adep, result, depth-1);
+                        i++;
+                        break;
+                    case MERGE_WITH_EMPTY:
+                        edges[i] = adep;
+                        kids[i] = merge2(a_kids[x], new LargeArrayAPT(), depth - 1, scoreMerger, emp, append(path, adep), result);
+                        i++;
+                        break;
+                }
+            }
+            x++;
+        }
+
+        while (y < b_edges.length) {
+            int bdep = b_edges[y];
+            if (bdep == returnPath) {
+                edges[i] = bdep;
+                kids[i] = parent;
+                i++;
+            } else {
+                switch (emp) {
+                    case KEEP_UNMATCHED:
+                    case KEEP_RIGHT_UNMATCHED:
+                        edges[i] = bdep;
+                        kids[i] = b_kids[y].copyFor(-bdep, result, depth-1);
+                        i++;
+                        break;
+                    case MERGE_WITH_EMPTY:
+                        edges[i] = bdep;
+                        kids[i] = merge2(new LargeArrayAPT(), b_kids[y], depth-1, scoreMerger, emp, append(path, bdep), result);
+                        i++;
+                        break;
+                }
+            }
+            y++;
+        }
+
+        result.edges = Arrays.copyOf(edges, i);
+        result.kids = Arrays.copyOf(kids, i);
+
+        return result;
+    }
+
+    public byte[] toByteArray() {
+        byte[] bytes = new byte[size(0)];
+
+        if (toByteArray(bytes, 0, 0) != bytes.length) throw new RuntimeException("bad serialization logics");
+
+        return bytes;
+    }
+
+    private int toByteArray(final byte[] bytes, final int offset, final int returnPath) {
+        int outputOffset = offset + 16;
+        for (int i=0; i<entities.length;i++) {
+            Util.int2bytes(entities[i], bytes, outputOffset);
+            Util.float2bytes(scores[i], bytes, outputOffset+4);
+            outputOffset += 8;
+        }
+
+        int kidsStart = outputOffset;
+
+        for (int i=0; i<edges.length;i++) {
+            int edge = edges[i];
+            if (edge != returnPath) {
+                Util.int2bytes(edge, bytes, outputOffset);
+                outputOffset = kids[i].toByteArray(bytes, outputOffset + 4, -edge);
+            }
+        }
+
+        int kidsLength = outputOffset - kidsStart;
+        int numKids = edges.length + (returnPath == 0 ? 0 : -1);
+
+
+        // write header
+        Util.int2bytes(entities.length << 3, bytes, offset);
+        Util.int2bytes(kidsLength, bytes, offset + 4);
+        Util.int2bytes(numKids, bytes, offset + 8);
+        Util.float2bytes(sum, bytes, offset + 12);
+
+        return outputOffset;
+    }
+
+    public static LargeArrayAPT fromByteArray(byte[] bytes) {
+        return fromByteArray(bytes, 0, 0, null).apt;
+    }
+
+    private static class OffsetAPTTuple {
+        private final int offset;
+        private final LargeArrayAPT apt;
+
+        private OffsetAPTTuple(int offset, LargeArrayAPT apt) {
+            this.offset = offset;
+            this.apt = apt;
+        }
+    }
+
+    private static OffsetAPTTuple fromByteArray(final byte[] bytes, int offset, final int returnPath, final LargeArrayAPT parent) {
+        LargeArrayAPT result = new LargeArrayAPT();
+
+        final int numEntitites = Util.bytes2int(bytes, offset) >>> 3;
+        final int numKids = Util.bytes2int(bytes, offset + 8) + (parent == null ? 0 : 1);
+        result.sum = Util.bytes2float(bytes, offset + 12);
+
+        offset += 16;
+
+        if (numEntitites > 0) {
+            int[] entities = new int[numEntitites];
+            float[] scores = new float[numEntitites];
+
+
+            for (int i=0; i < numEntitites; i++) {
+                entities[i] = Util.bytes2int(bytes, offset);
+                scores[i] = Util.bytes2float(bytes, offset + 4);
+                offset += 8;
+            }
+
+            result.entities = entities;
+            result.scores = scores;
+        }
+
+        if (numKids > 0) {
+            boolean doneParent = parent == null;
+
+            int[] edges = new int[numKids];
+            LargeArrayAPT[] kids = new LargeArrayAPT[numKids];
+            for (int i=0; i<numKids; i++) {
+                if (!doneParent && i == numKids - 1) {
+                    edges[i] = returnPath;
+                    kids[i] = parent;
+                    doneParent = true;
+                } else {
+                    int edge = Util.bytes2int(bytes, offset);
+
+                    if (!doneParent && returnPath < edge) {
+                        edges[i] = returnPath;
+                        kids[i] = parent;
+                        doneParent = true;
+                    } else {
+                        edges[i] = edge;
+                        OffsetAPTTuple t = fromByteArray(bytes, offset + 4, -edge, result);
+                        kids[i] = t.apt;
+                        offset = t.offset;
+                    }
+                }
+            }
+
+            result.edges = edges;
+            result.kids = kids;
+        }
+
+        return new OffsetAPTTuple(offset, result);
+    }
+
+
+    private int size(int returnPath) {
+        int s = 16 + (entities.length << 3);
+
+        for (int i=0;i<edges.length;i++) {
+            int edge = edges[i];
+            if (edge != returnPath) {
+                s += 4 + kids[i].size(-edge);
+            }
+        }
+
+        return s;
+    }
+
+    private boolean floatEquals(float a, float b, float tolerance) {
+        return a==b || Math.abs(a - b) <= tolerance;
+    }
+
+    private boolean equals(LargeArrayAPT other, int returnPath) {
+        if (other == this) {
+            return true;
+        } else if (!floatEquals(other.sum, sum, 0.0001f)) {
+            return false;
+        } else if (other.entities.length != entities.length) {
+            return false;
+        } else if (other.edges.length != edges.length) {
+            return false;
+        } else {
+
+            for (int i=0; i<entities.length;i++)
+                if (entities[i] != other.entities[i] || !floatEquals(scores[i], other.scores[i], 0.0001f))
+                    return false;
+
+            for (int i=0; i<kids.length; i++)
+                if (edges[i] != other.edges[i] || (edges[i] != returnPath && !kids[i].equals(other.kids[i], -edges[i])))
+                    return false;
+
+            return true;
+        }
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (!(obj instanceof APT)) {
+            return false;
+        } else {
+            return this.equals(ensureArrayAPT((APT)obj), 0);
+        }
+    }
+
+
+    public Map<int[], Float> extractFeatures () {
+        final Map<int[], Float> result = new HashMap<>();
+        walk(new APTVisitor<LargeArrayAPT>() {
+            @Override
+            public void visit(int[] path, LargeArrayAPT apt) {
+                final int[] es = apt.entities;
+                final float[] cs = apt.scores;
+                for (int i=0; i < es.length; i++)
+                    result.put(append(path, es[i]), cs[i]);
+            }
+        });
+        return result;
+    }
+
+    public SparseDoubleVector toSDV (final Indexer<int[]> featureIndexer) {
+        final Int2DoubleSortedMap features = new Int2DoubleRBTreeMap();
+        walk(new APTVisitor<LargeArrayAPT>() {
+            @Override
+            public void visit(int[] path, LargeArrayAPT apt) {
+                final int[] es = apt.entities;
+                final float[] cs = apt.scores;
+                for (int i=0; i < es.length; i++)
+                    features.put(featureIndexer.getIndex(append(path, es[i])), cs[i]);
+            }
+        });
+
+        int[] keys = new int[features.size()];
+        double[] vals = new double[features.size()];
+
+        int i = 0;
+        for (Int2DoubleMap.Entry e : features.int2DoubleEntrySet()) {
+            keys[i] = e.getIntKey();
+            vals[i++] = e.getDoubleValue();
+        }
+
+        return new SparseDoubleVector(keys, vals, keys[keys.length-1], keys.length);
+    }
+
+    public int getEntityCount() {
+        return entities.length;
+    }
+
+}
+

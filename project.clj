@@ -12,7 +12,8 @@
                  [org.clojure/tools.logging "0.3.1"]
                  [org.clojure/core.async "0.1.346.0-17112a-alpha"]
                  [com.beust/jcommander "1.48"]
-                 [org.fusesource.leveldbjni/leveldbjni-all "1.8"]]
+                 [org.fusesource.leveldbjni/leveldbjni-all "1.8"]
+                 [pl.edu.icm/JLargeArrays "1.6"]]
   :main uk.ac.susx.tag.apt.tasks.Main
   :javac-options ["-target" "1.8" "-source" "1.8" "-Xlint:-options"]
   :repositories [["oracle" "http://download.oracle.com/maven"]

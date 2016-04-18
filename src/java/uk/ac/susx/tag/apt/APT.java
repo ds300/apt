@@ -3,6 +3,7 @@ package uk.ac.susx.tag.apt;
 import it.unimi.dsi.fastutil.ints.Int2FloatSortedMap;
 import it.unimi.dsi.fastutil.ints.Int2IntSortedMap;
 import it.unimi.dsi.fastutil.ints.Int2ObjectSortedMap;
+import pl.edu.icm.jlargearrays.ByteLargeArray;
 
 /**
  * Interfaces specifying the core operations of Anchored Packed Trees (APTs)
@@ -112,5 +113,10 @@ public interface APT {
      * @return the serialized byte array.
      */
     byte[] toByteArray();
+
+    /**
+     * TODO: Write Documentation
+     */
+    ByteLargeArray toLargeByteArray();
 }
 
